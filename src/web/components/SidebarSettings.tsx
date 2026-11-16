@@ -1,3 +1,4 @@
+import { useTheme, setTheme, type Theme } from '../lib/theme';
 import { useEffect, useRef, useState } from 'react';
 import {
   Bell,
@@ -5,6 +6,7 @@ import {
   ChevronRight,
   DatabaseBackup,
   Languages,
+  Moon,
   Server,
   Settings,
 } from 'lucide-react';
@@ -64,6 +66,7 @@ function SettingsDialog({
   onAccountUsage,
   ...props
 }: Props & { onClose: () => void; onAccountUsage: () => void }) {
+  const theme = useTheme();
   const dialog = useRef<HTMLDialogElement>(null);
   const { onBackups } = props;
   useEffect(() => {
@@ -116,6 +119,20 @@ function SettingsDialog({
                 {localeNames[locale]}
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+      </label>
+      <label className="appearance-selector">
+        <Moon size={18} aria-hidden="true" />
+        <span>{t('common:appearance')}</span>
+        <Select value={theme} onValueChange={(value) => setTheme(value as Theme)}>
+          <SelectTrigger aria-label={t('common:appearance')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="system">{t('common:theme_system')}</SelectItem>
+            <SelectItem value="light">{t('common:theme_light')}</SelectItem>
+            <SelectItem value="dark">{t('common:theme_dark')}</SelectItem>
           </SelectContent>
         </Select>
       </label>

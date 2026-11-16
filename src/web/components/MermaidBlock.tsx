@@ -1,25 +1,12 @@
+import { useDarkTheme } from '../lib/theme';
 import { message, displayMessage } from '../i18n/messages';
 import { t } from '../i18n';
 import { useEffect, useRef, useState } from 'react';
 import { renderMermaid } from '../lib/mermaid';
 import { Button } from './ui/button';
 
-function useDarkDiagram() {
-  const [dark, setDark] = useState(
-    () => typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches,
-  );
-  useEffect(() => {
-    const query = matchMedia('(prefers-color-scheme: dark)');
-    const update = () => setDark(query.matches);
-    update();
-    query.addEventListener('change', update);
-    return () => query.removeEventListener('change', update);
-  }, []);
-  return dark;
-}
-
 export function MermaidBlock({ source, pending }: { source: string; pending: boolean }) {
-  const dark = useDarkDiagram();
+  const dark = useDarkTheme();
   const [result, setResult] = useState<{
     source: string;
     dark: boolean;
