@@ -18,7 +18,7 @@ function apply() {
   document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', dark ? '#171b20' : '#f7f8fa');
+    ?.setAttribute('content', dark ? '#1e2024' : '#f7f8fa');
   listeners.forEach((listener) => listener());
 }
 export function setTheme(value: Theme) {
