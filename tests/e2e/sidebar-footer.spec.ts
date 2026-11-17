@@ -49,36 +49,6 @@ for (const locale of supportedLocales) {
 
       // The settings overview owns the low-frequency copy and labels every original entry.
       const dialog = await openSidebarSettings(page);
-      await expect(dialog.locator('.settings-section-title')).toHaveText([
-        sidebar.settings_group_interface!,
-        sidebar.settings_group_agent!,
-        sidebar.settings_group_account!,
-        sidebar.settings_group_service!,
-      ]);
-      const interfaceGroup = dialog.getByRole('region', {
-        name: sidebar.settings_group_interface!,
-        exact: true,
-      });
-      await expect(interfaceGroup.getByRole('combobox')).toHaveCount(2);
-      const agentGroup = dialog.getByRole('region', {
-        name: sidebar.settings_group_agent!,
-        exact: true,
-      });
-      await expect(
-        agentGroup.getByRole('button', {
-          name: catalog('settings').global_defaults_title,
-          exact: true,
-        }),
-      ).toBeVisible();
-      await expect(
-        agentGroup.getByRole('button', { name: sidebar.instructions_edit!, exact: true }),
-      ).toBeVisible();
-      const serviceGroup = dialog.getByRole('region', {
-        name: sidebar.settings_group_service!,
-        exact: true,
-      });
-      await expect(serviceGroup.getByRole('button')).toHaveCount(2);
-
       await expect(
         dialog.getByRole('combobox', { name: catalog('common').language }),
       ).toHaveAttribute('data-value', locale);
@@ -104,15 +74,6 @@ for (const locale of supportedLocales) {
         expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
       }
       await page.screenshot({ path: info.outputPath('settings.png'), animations: 'disabled' });
-      if (locale === 'zh-Hans') {
-        for (const theme of ['light', 'dark'] as const) {
-          await page.emulateMedia({ colorScheme: theme });
-          const path = info.outputPath(`settings-groups-${theme}.png`);
-          await dialog.screenshot({ path, animations: 'disabled' });
-          await info.attach(`settings-groups-${theme}`, { path, contentType: 'image/png' });
-        }
-      }
-
       await page.keyboard.press('Escape');
       await expect(dialog).not.toBeVisible();
       await expect(trigger).toBeFocused();

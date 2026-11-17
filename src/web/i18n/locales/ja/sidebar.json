@@ -179,9 +179,5 @@
   "instructions_reload": "再読み込み",
   "instructions_saving": "保存中…",
   "instructions_save": "ファイルを保存",
-  "instructions_override": "AGENTS.override.md が優先されるため、この AGENTS.md の保存は無効です。",
-  "settings_group_interface": "外観と言語",
-  "settings_group_agent": "エージェントと会話",
-  "settings_group_account": "アカウントと通知",
-  "settings_group_service": "サービスとデータ"
+  "instructions_override": "AGENTS.override.md が優先されるため、この AGENTS.md の保存は無効です。"
 }

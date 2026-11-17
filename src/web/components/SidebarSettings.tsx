@@ -1,7 +1,7 @@
 import { GlobalDefaultsDialog } from './GlobalDefaultsDialog';
 import { GlobalInstructionsEditor } from './GlobalInstructionsEditor';
 import { useTheme, setTheme, type Theme } from '../lib/theme';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Bell,
   Gauge,
@@ -11,8 +11,6 @@ import {
   Moon,
   Server,
   Settings,
-  SlidersHorizontal,
-  FileText,
 } from 'lucide-react';
 import { changeLocale, currentLocale, t } from '../i18n';
 import { localeNames, supportedLocales, type Locale } from '../i18n/locales';
@@ -130,89 +128,77 @@ function SettingsDialog({
           <Icon name="close" size={17} />
         </Button>
       </div>
-      <div className="settings-sections">
-        <SettingsSection
-          controls
-          id="settings-interface"
-          title={t('sidebar:settings_group_interface')}
+      <label className="language-selector">
+        <Languages size={18} aria-hidden="true" />
+        <span>{t('common:language')}</span>
+        <Select
+          value={currentLocale()}
+          onValueChange={(value) => void changeLocale(value as Locale)}
         >
-          <label className="language-selector">
-            <Languages size={18} aria-hidden="true" />
-            <span>{t('common:language')}</span>
-            <Select
-              value={currentLocale()}
-              onValueChange={(value) => void changeLocale(value as Locale)}
-            >
-              <SelectTrigger aria-label={t('common:language')} data-value={currentLocale()}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {supportedLocales.map((locale) => (
-                  <SelectItem key={locale} value={locale} lang={locale}>
-                    {localeNames[locale]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </label>
-          <label className="appearance-selector">
-            <Moon size={18} aria-hidden="true" />
-            <span>{t('common:appearance')}</span>
-            <Select value={theme} onValueChange={(value) => setTheme(value as Theme)}>
-              <SelectTrigger aria-label={t('common:appearance')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="system">{t('common:theme_system')}</SelectItem>
-                <SelectItem value="light">{t('common:theme_light')}</SelectItem>
-                <SelectItem value="dark">{t('common:theme_dark')}</SelectItem>
-              </SelectContent>
-            </Select>
-          </label>
-        </SettingsSection>
-        <SettingsSection id="settings-agent" title={t('sidebar:settings_group_agent')}>
-          <Button variant="ghost" onClick={() => navigate(onDefaults)}>
-            <SlidersHorizontal size={18} aria-hidden="true" />
-            <span className="sidebar-settings-label">{t('settings:global_defaults_title')}</span>
+          <SelectTrigger aria-label={t('common:language')} data-value={currentLocale()}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {supportedLocales.map((locale) => (
+              <SelectItem key={locale} value={locale} lang={locale}>
+                {localeNames[locale]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </label>
+      <label className="appearance-selector">
+        <Moon size={18} aria-hidden="true" />
+        <span>{t('common:appearance')}</span>
+        <Select value={theme} onValueChange={(value) => setTheme(value as Theme)}>
+          <SelectTrigger aria-label={t('common:appearance')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="system">{t('common:theme_system')}</SelectItem>
+            <SelectItem value="light">{t('common:theme_light')}</SelectItem>
+            <SelectItem value="dark">{t('common:theme_dark')}</SelectItem>
+          </SelectContent>
+        </Select>
+      </label>
+      <div className="sidebar-settings-links">
+        <Button variant="ghost" onClick={() => navigate(onDefaults)}>
+          <Settings size={18} aria-hidden="true" />
+          <span className="sidebar-settings-label">{t('settings:global_defaults_title')}</span>
+          <ChevronRight size={16} aria-hidden="true" />
+        </Button>
+        <Button variant="ghost" onClick={() => navigate(onInstructions)}>
+          <Settings size={18} aria-hidden="true" />
+          <span className="sidebar-settings-label">{t('sidebar:instructions_edit')}</span>
+          <ChevronRight size={16} aria-hidden="true" />
+        </Button>
+        <Button variant="ghost" onClick={() => navigate(onAccountUsage)}>
+          <Gauge size={18} aria-hidden="true" />
+          <span className="sidebar-settings-label">{t('account:title')}</span>
+          <ChevronRight size={16} aria-hidden="true" />
+        </Button>
+        <Button
+          variant="ghost"
+          aria-label={t('sidebar:browser_notifications_status', { v0: props.notificationStatus })}
+          onClick={() => navigate(props.onNotificationSettings)}
+        >
+          <Bell size={18} aria-hidden="true" />
+          <span className="sidebar-settings-label">{t('sidebar:browser_notifications')}</span>
+          <span className="sidebar-settings-status">{props.notificationStatus}</span>
+          <ChevronRight size={16} aria-hidden="true" />
+        </Button>
+        <Button variant="ghost" onClick={() => navigate(props.onGatewaySettings)}>
+          <Settings size={18} aria-hidden="true" />
+          <span className="sidebar-settings-label">{t('common:service_settings')}</span>
+          <ChevronRight size={16} aria-hidden="true" />
+        </Button>
+        {onBackups && (
+          <Button variant="ghost" onClick={() => navigate(onBackups)}>
+            <DatabaseBackup size={18} aria-hidden="true" />
+            <span className="sidebar-settings-label">{t('backups:title')}</span>
             <ChevronRight size={16} aria-hidden="true" />
           </Button>
-          <Button variant="ghost" onClick={() => navigate(onInstructions)}>
-            <FileText size={18} aria-hidden="true" />
-            <span className="sidebar-settings-label">{t('sidebar:instructions_edit')}</span>
-            <ChevronRight size={16} aria-hidden="true" />
-          </Button>
-        </SettingsSection>
-        <SettingsSection id="settings-account" title={t('sidebar:settings_group_account')}>
-          <Button variant="ghost" onClick={() => navigate(onAccountUsage)}>
-            <Gauge size={18} aria-hidden="true" />
-            <span className="sidebar-settings-label">{t('account:title')}</span>
-            <ChevronRight size={16} aria-hidden="true" />
-          </Button>
-          <Button
-            variant="ghost"
-            aria-label={t('sidebar:browser_notifications_status', { v0: props.notificationStatus })}
-            onClick={() => navigate(props.onNotificationSettings)}
-          >
-            <Bell size={18} aria-hidden="true" />
-            <span className="sidebar-settings-label">{t('sidebar:browser_notifications')}</span>
-            <span className="sidebar-settings-status">{props.notificationStatus}</span>
-            <ChevronRight size={16} aria-hidden="true" />
-          </Button>
-        </SettingsSection>
-        <SettingsSection id="settings-service" title={t('sidebar:settings_group_service')}>
-          <Button variant="ghost" onClick={() => navigate(props.onGatewaySettings)}>
-            <Server size={18} aria-hidden="true" />
-            <span className="sidebar-settings-label">{t('common:service_settings')}</span>
-            <ChevronRight size={16} aria-hidden="true" />
-          </Button>
-          {onBackups && (
-            <Button variant="ghost" onClick={() => navigate(onBackups)}>
-              <DatabaseBackup size={18} aria-hidden="true" />
-              <span className="sidebar-settings-label">{t('backups:title')}</span>
-              <ChevronRight size={16} aria-hidden="true" />
-            </Button>
-          )}
-        </SettingsSection>
+        )}
       </div>
       <div className="sidebar-settings-execution">
         <Server size={17} aria-hidden="true" />
@@ -222,28 +208,5 @@ function SettingsDialog({
         </div>
       </div>
     </dialog>
-  );
-}
-
-function SettingsSection({
-  id,
-  title,
-  children,
-  controls = false,
-}: {
-  controls?: boolean;
-  id: string;
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="settings-section" aria-labelledby={id}>
-      <h3 id={id} className="settings-section-title">
-        {title}
-      </h3>
-      <div className={`settings-section-body${controls ? '' : ' sidebar-settings-links'}`}>
-        {children}
-      </div>
-    </section>
   );
 }

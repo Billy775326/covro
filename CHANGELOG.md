@@ -8,10 +8,6 @@
 
 - Configure default permission mode, model, and reasoning effort for new conversations in Settings, with model-aware options and concurrent-edit detection. Existing conversations keep their settings.
 
-### Changed
-
-- Group Settings into appearance and language, agent and conversations, account and notifications, and service and data, with consistent rows across desktop and mobile.
-
 ### Fixed
 
 - Align the appearance selector typography and controls with the language selector on desktop and mobile.

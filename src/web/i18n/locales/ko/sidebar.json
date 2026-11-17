@@ -179,9 +179,5 @@
   "instructions_reload": "다시 읽기",
   "instructions_saving": "저장 중…",
   "instructions_save": "파일 저장",
-  "instructions_override": "AGENTS.override.md가 우선 적용되어 이 AGENTS.md 저장이 비활성화됩니다.",
-  "settings_group_interface": "화면 및 언어",
-  "settings_group_agent": "에이전트 및 대화",
-  "settings_group_account": "계정 및 알림",
-  "settings_group_service": "서비스 및 데이터"
+  "instructions_override": "AGENTS.override.md가 우선 적용되어 이 AGENTS.md 저장이 비활성화됩니다."
 }
