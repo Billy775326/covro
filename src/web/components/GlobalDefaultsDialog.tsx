@@ -1,3 +1,4 @@
+import { SettingsSurface, useSettingsLeaveGuard } from './SettingsSurface';
 import { useEffect, useRef, useState } from 'react';
 import type { GlobalDefaultsSnapshot, GlobalDefaultSettings } from '../../shared/global-defaults';
 import type { ModelDefaultsResult, PermissionMode } from '../../shared/types';
@@ -149,8 +150,9 @@ export function GlobalDefaultsDialog({
     setStatus(undefined);
     setDiscard(false);
   }
+  useSettingsLeaveGuard(close);
   return (
-    <dialog
+    <SettingsSurface
       ref={dialog}
       className="project-dialog global-defaults-dialog"
       aria-labelledby="global-defaults-title"
@@ -175,41 +177,6 @@ export function GlobalDefaultsDialog({
       {loading && <p role="status">{t('common:loading_2')}</p>}
       {snapshot && draft && (
         <fieldset className="global-defaults-fields" disabled={disabled || loading || saving}>
-          <label className="project-field">
-            <span>{t('settings:global_default_permission')}</span>
-            <Select
-              value={draft.permissionMode ?? automatic}
-              onValueChange={(value) =>
-                change({ permissionMode: value === automatic ? null : (value as PermissionMode) })
-              }
-            >
-              <SelectTrigger aria-label={t('settings:global_default_permission')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={automatic}>
-                  {t('settings:global_defaults_keep_permission')}
-                </SelectItem>
-                {(Object.keys(permissionModes) as PermissionMode[]).map((mode) => {
-                  const reason = permissionModeUnavailable(
-                    mode,
-                    snapshot.capabilities,
-                    draft.model,
-                  );
-                  return (
-                    <SelectItem
-                      key={mode}
-                      value={mode}
-                      disabled={Boolean(reason)}
-                      description={reason ?? permissionModes[mode].description}
-                    >
-                      {permissionModes[mode].label}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          </label>
           <label className="project-field">
             <span>{t('settings:global_default_model')}</span>
             <Select
@@ -272,6 +239,41 @@ export function GlobalDefaultsDialog({
               </SelectContent>
             </Select>
           </label>
+          <label className="project-field">
+            <span>{t('settings:global_default_permission')}</span>
+            <Select
+              value={draft.permissionMode ?? automatic}
+              onValueChange={(value) =>
+                change({ permissionMode: value === automatic ? null : (value as PermissionMode) })
+              }
+            >
+              <SelectTrigger aria-label={t('settings:global_default_permission')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={automatic}>
+                  {t('settings:global_defaults_keep_permission')}
+                </SelectItem>
+                {(Object.keys(permissionModes) as PermissionMode[]).map((mode) => {
+                  const reason = permissionModeUnavailable(
+                    mode,
+                    snapshot.capabilities,
+                    draft.model,
+                  );
+                  return (
+                    <SelectItem
+                      key={mode}
+                      value={mode}
+                      disabled={Boolean(reason)}
+                      description={reason ?? permissionModes[mode].description}
+                    >
+                      {permissionModes[mode].label}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </label>
         </fieldset>
       )}
       {unavailable && <p className="inline-error">{unavailable}</p>}
@@ -320,6 +322,6 @@ export function GlobalDefaultsDialog({
           {t(saving ? 'settings:global_defaults_saving' : 'settings:global_defaults_save')}
         </Button>
       </div>
-    </dialog>
+    </SettingsSurface>
   );
 }

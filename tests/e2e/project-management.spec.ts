@@ -223,9 +223,9 @@ test('global instructions editor creates, saves, detects conflicts, and protects
 }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(origin);
-  const settings = await openSidebarSettings(page);
+  const settings = await openSidebarSettings(page, 'ai');
   await settings.getByRole('button', { name: '全局指令', exact: true }).click();
-  const editor = page.getByRole('dialog', { name: '编辑全局指令', exact: true });
+  const editor = page.getByRole('region', { name: '编辑全局指令', exact: true });
   const file = join(directory, 'codex-home', 'AGENTS.md');
   await expect(editor).toContainText(file);
   const textbox = editor.getByRole('textbox', { name: 'AGENTS.md', exact: true });
@@ -270,7 +270,7 @@ test('global instructions editor creates, saves, detects conflicts, and protects
   expect(invalid.status()).toBe(400);
   await expect(page.locator('.instructions-trigger')).toHaveCount(0);
   await writeFile(join(directory, 'codex-home', 'AGENTS.override.md'), 'active override');
-  await openSidebarSettings(page);
+  await openSidebarSettings(page, 'ai');
   await page.getByRole('button', { name: '全局指令', exact: true }).click();
   await expect(editor.getByRole('alert')).toContainText('AGENTS.override.md');
   await expect(editor.getByRole('button', { name: '保存文件', exact: true })).toBeDisabled();

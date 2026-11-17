@@ -2,9 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { confirmCompatibility, controlRuntime, openSidebarSettings, testOrigin } from './helpers';
 async function openDefaults(page: Page) {
-  const settings = await openSidebarSettings(page);
-  await settings.getByRole('button', { name: '会话默认设置', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: '会话默认设置', exact: true });
+  await openSidebarSettings(page, 'ai');
+  const dialog = page.getByRole('region', { name: '会话默认设置', exact: true });
   await expect(dialog.getByRole('combobox', { name: '默认模型', exact: true })).toBeVisible();
   return dialog;
 }
@@ -113,6 +112,6 @@ test('unsaved defaults require confirmation before closing and model defaults ca
   await expect(dialog.getByRole('status')).toContainText('默认设置已保存');
   const snapshot = await (await request.get('/api/settings/defaults')).json();
   expect(snapshot.settings.reasoningEffort).toBe(null);
-  await dialog.getByRole('button', { name: '关闭', exact: true }).click();
+  await page.locator('.settings-heading button').click();
   await expect(dialog).not.toBeVisible();
 });

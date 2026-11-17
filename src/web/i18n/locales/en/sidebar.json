@@ -179,5 +179,17 @@
   "instructions_reload": "Reload file",
   "instructions_saving": "Saving…",
   "instructions_save": "Save file",
-  "instructions_override": "AGENTS.override.md takes precedence. This AGENTS.md is not currently effective; saving is disabled."
+  "instructions_override": "AGENTS.override.md takes precedence. This AGENTS.md is not currently effective; saving is disabled.",
+  "settings_category_general": "General",
+  "settings_category_ai": "AI configuration",
+  "settings_category_account": "Account",
+  "settings_category_service": "Service & data",
+  "settings_categories": "Settings categories",
+  "settings_interface": "Interface",
+  "settings_notifications": "Notifications",
+  "settings_data": "Data management",
+  "settings_browser_scope": "These preferences apply to this browser only.",
+  "settings_instructions_help": "Edit global development guidelines and behavior instructions",
+  "settings_service_help": "Manage the service host and connection settings",
+  "settings_backups_help": "View backup status and recovery options"
 }

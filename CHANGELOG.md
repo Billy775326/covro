@@ -8,6 +8,10 @@
 
 - Configure default permission mode, model, and reasoning effort for new conversations in Settings, with model-aware options and concurrent-edit detection. Existing conversations keep their settings.
 
+### Changed
+
+- Organize Settings into General, AI configuration, Account, and Service & data, with sidebar navigation on desktop, category navigation on mobile, and editors inside one window with unsaved-change protection.
+
 ### Fixed
 
 - Align the appearance selector typography and controls with the language selector on desktop and mobile.

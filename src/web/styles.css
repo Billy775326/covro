@@ -5821,3 +5821,243 @@ dd {
 .global-defaults-discard .button + .button {
   margin-left: 8px;
 }
+
+/* A single settings window keeps navigation visible while each editor owns its draft. */
+.sidebar-settings-dialog {
+  width: min(920px, calc(100vw - 32px));
+  height: min(700px, calc(100dvh - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  overflow: hidden;
+}
+.sidebar-settings-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.settings-heading {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-layout {
+  display: grid;
+  grid-template-columns: 176px minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 12px;
+  border-right: 1px solid var(--border);
+  background: light-dark(#f5f7f6, var(--dark-sidebar));
+  overflow-y: auto;
+}
+.settings-nav .button {
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  height: auto;
+  padding: 10px 12px;
+  font-size: 14px;
+  white-space: normal;
+  text-align: left;
+}
+.settings-nav .button[aria-current='page'] {
+  color: light-dark(#28513c, var(--dark-accent));
+  background: light-dark(#e4eee7, var(--dark-accent-surface));
+}
+.settings-content {
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px 28px;
+}
+.settings-pane-heading {
+  margin-bottom: 26px;
+}
+.settings-pane-heading h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+.settings-pane-heading p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.settings-section {
+  margin-top: 26px;
+}
+.settings-section h4 {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+.settings-entry.button {
+  display: flex;
+  width: 100%;
+  min-height: 60px;
+  height: auto;
+  gap: 12px;
+  padding: 12px 0;
+  white-space: normal;
+  text-align: left;
+}
+.settings-entry > span {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.settings-entry strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+.settings-entry small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.settings-entry > svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.settings-back.button {
+  display: none;
+}
+.settings-back.settings-back-detail {
+  display: inline-flex;
+  margin: -8px 0 18px -8px;
+}
+.settings-mobile-chevron {
+  display: none;
+}
+.sidebar-settings-dialog :is(.language-selector, .appearance-selector) {
+  gap: 12px;
+  padding: 16px 0;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-settings-dialog :is(.language-selector, .appearance-selector) .select-trigger {
+  width: 190px;
+  max-width: 58%;
+  font-size: 14px;
+}
+.sidebar-settings-dialog .settings-embedded {
+  position: static;
+  width: 100%;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  overflow: visible;
+  background: transparent;
+  box-shadow: none;
+}
+.settings-embedded > .project-dialog-heading {
+  position: static;
+  margin: 0 0 14px;
+  padding: 0;
+  background: transparent;
+}
+.settings-embedded > .project-dialog-heading > .button {
+  display: none;
+}
+.settings-embedded .global-defaults-fields {
+  margin-top: 24px;
+}
+.settings-embedded .global-defaults-fields .project-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 54%);
+  gap: 16px;
+  align-items: center;
+  margin: 0;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.settings-embedded .global-defaults-fields .project-field > span {
+  font-size: 14px;
+}
+.settings-embedded .instructions-content {
+  min-height: 280px;
+  max-height: none;
+}
+.settings-embedded .project-dialog-actions {
+  flex-wrap: wrap;
+}
+.settings-content .sidebar-settings-execution {
+  margin-top: 32px;
+  padding: 18px 0 0;
+}
+@media (max-width: 640px) {
+  .sidebar-settings-dialog {
+    width: calc(100vw - 16px);
+    height: calc(100dvh - 16px);
+    max-height: calc(100dvh - 16px);
+    border-radius: 12px;
+  }
+  .settings-heading {
+    padding: 14px 16px;
+  }
+  .settings-layout {
+    display: flex;
+    flex-direction: column;
+  }
+  .settings-nav {
+    flex: 1;
+    border-right: 0;
+    padding: 16px 12px;
+    background: transparent;
+  }
+  .settings-nav .button {
+    min-height: 56px;
+    font-size: 15px;
+  }
+  .settings-nav .button > span {
+    flex: 1;
+  }
+  .settings-mobile-chevron {
+    display: block;
+  }
+  .sidebar-settings-dialog[data-mobile-index='false'] .settings-nav {
+    display: none;
+  }
+  .sidebar-settings-dialog[data-mobile-index='true'] .settings-content {
+    display: none;
+  }
+  .settings-content {
+    flex: 1;
+    padding: 18px 16px;
+  }
+  .settings-back.button {
+    display: inline-flex;
+    margin: -6px 0 20px -8px;
+  }
+  .settings-embedded .global-defaults-fields .project-field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .settings-embedded .global-defaults-fields .select-trigger {
+    width: 100%;
+  }
+  .settings-embedded .instructions-content {
+    min-height: 240px;
+  }
+  .settings-embedded .gateway-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.settings-embedded > .subtle {
+  font-size: 13px;
+  line-height: 1.65;
+}

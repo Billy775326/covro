@@ -179,5 +179,17 @@
   "instructions_reload": "重新读取",
   "instructions_saving": "保存中…",
   "instructions_save": "保存文件",
-  "instructions_override": "检测到优先生效的 AGENTS.override.md，当前 AGENTS.md 不生效，暂不可保存。"
+  "instructions_override": "检测到优先生效的 AGENTS.override.md，当前 AGENTS.md 不生效，暂不可保存。",
+  "settings_category_general": "通用",
+  "settings_category_ai": "AI 配置",
+  "settings_category_account": "账户",
+  "settings_category_service": "服务与数据",
+  "settings_categories": "设置分类",
+  "settings_interface": "界面",
+  "settings_notifications": "通知",
+  "settings_data": "数据管理",
+  "settings_browser_scope": "这些偏好设置仅用于当前浏览器。",
+  "settings_instructions_help": "编辑全局开发约定与行为指令",
+  "settings_service_help": "管理运行服务的电脑与连接配置",
+  "settings_backups_help": "查看备份状态与数据恢复方式"
 }

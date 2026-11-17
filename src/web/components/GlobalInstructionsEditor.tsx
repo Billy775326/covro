@@ -1,3 +1,4 @@
+import { SettingsSurface, useSettingsLeaveGuard } from './SettingsSurface';
 import { useEffect, useRef, useState } from 'react';
 import type { GlobalInstructions } from '../../shared/global-instructions';
 import { api } from '../lib/api';
@@ -100,8 +101,9 @@ export function GlobalInstructionsEditor({
       busy.current = false;
     }
   }
+  useSettingsLeaveGuard(close);
   return (
-    <dialog
+    <SettingsSurface
       ref={dialog}
       className="project-dialog instructions-dialog"
       aria-labelledby="instructions-title"
@@ -200,6 +202,6 @@ export function GlobalInstructionsEditor({
           {t(saving ? 'sidebar:instructions_saving' : 'sidebar:instructions_save')}
         </Button>
       </div>
-    </dialog>
+    </SettingsSurface>
   );
 }
