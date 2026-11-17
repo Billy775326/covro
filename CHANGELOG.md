@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Configure default permission mode, model, and reasoning effort for new conversations in Settings, with model-aware options and concurrent-edit detection. Existing conversations keep their settings.
+
 ## [0.10.0](https://github.com/yuzheng14/covro/compare/v0.9.0...v0.10.0) (2026-11-13)
 
 

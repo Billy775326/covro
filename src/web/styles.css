@@ -5766,3 +5766,24 @@ dd {
 :root[data-theme='dark'] .project-dialog::backdrop {
   background: rgb(10 12 15 / 45%);
 }
+
+.global-defaults-dialog {
+  width: min(520px, calc(100vw - 32px));
+}
+.global-defaults-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.global-defaults-fields .select-trigger {
+  width: 100%;
+}
+.global-defaults-discard {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.global-defaults-discard .button + .button {
+  margin-left: 8px;
+}

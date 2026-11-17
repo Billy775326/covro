@@ -1,3 +1,4 @@
+import type { SaveGlobalDefaultsInput } from '../shared/global-defaults.js';
 import { questionAnswers } from '../shared/question-resolution.js';
 import { asyncQuestionId, parseQuestionReplies } from '../shared/async-questions.js';
 import { QuestionTrackingStore } from './db/question-tracking.js';
@@ -601,6 +602,23 @@ export class GatewayService {
     return this.codex.readRuntimeSettings(cwd);
   }
 
+  async readGlobalDefaults() {
+    this.ensureReady();
+    if (!this.codex.readGlobalDefaults)
+      throw new AppError('PROTOCOL_INCOMPATIBLE', 'Global defaults are not supported', 503);
+    return this.codex.readGlobalDefaults();
+  }
+  async saveGlobalDefaults(input: SaveGlobalDefaultsInput): Promise<Operation> {
+    return this.perform('config.globalDefaults', UNASSIGNED_SCOPE, input, async () => {
+      this.ensureReady();
+      this.ensureCompatibilityConfirmed();
+      if (!this.codex.saveGlobalDefaults)
+        throw new AppError('PROTOCOL_INCOMPATIBLE', 'Global defaults are not supported', 503);
+      this.store.dispatch(input.clientOperationId);
+      const result = await this.codex.saveGlobalDefaults(input);
+      return { result };
+    });
+  }
   async saveModelDefaults(
     projectId: string | null,
     input: SaveModelDefaultsInput,

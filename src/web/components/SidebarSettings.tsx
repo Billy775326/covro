@@ -1,3 +1,4 @@
+import { GlobalDefaultsDialog } from './GlobalDefaultsDialog';
 import { useTheme, setTheme, type Theme } from '../lib/theme';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -29,6 +30,7 @@ interface Props {
 
 export function SidebarSettings(props: Props) {
   const [open, setOpen] = useState(false);
+  const [defaultsOpen, setDefaultsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   return (
     <>
@@ -46,8 +48,15 @@ export function SidebarSettings(props: Props) {
       {open && (
         <SettingsDialog
           {...props}
+          onDefaults={() => setDefaultsOpen(true)}
           onAccountUsage={() => setAccountOpen(true)}
           onClose={() => setOpen(false)}
+        />
+      )}
+      {defaultsOpen && (
+        <GlobalDefaultsDialog
+          disabled={props.offline ?? false}
+          onClose={() => setDefaultsOpen(false)}
         />
       )}
       {accountOpen && (
@@ -64,8 +73,9 @@ export function SidebarSettings(props: Props) {
 function SettingsDialog({
   onClose,
   onAccountUsage,
+  onDefaults,
   ...props
-}: Props & { onClose: () => void; onAccountUsage: () => void }) {
+}: Props & { onClose: () => void; onAccountUsage: () => void; onDefaults: () => void }) {
   const theme = useTheme();
   const dialog = useRef<HTMLDialogElement>(null);
   const { onBackups } = props;
@@ -137,6 +147,11 @@ function SettingsDialog({
         </Select>
       </label>
       <div className="sidebar-settings-links">
+        <Button variant="ghost" onClick={() => navigate(onDefaults)}>
+          <Settings size={18} aria-hidden="true" />
+          <span className="sidebar-settings-label">{t('settings:global_defaults_title')}</span>
+          <ChevronRight size={16} aria-hidden="true" />
+        </Button>
         <Button variant="ghost" onClick={() => navigate(onAccountUsage)}>
           <Gauge size={18} aria-hidden="true" />
           <span className="sidebar-settings-label">{t('account:title')}</span>
