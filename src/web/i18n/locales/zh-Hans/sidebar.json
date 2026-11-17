@@ -179,5 +179,9 @@
   "instructions_reload": "重新读取",
   "instructions_saving": "保存中…",
   "instructions_save": "保存文件",
-  "instructions_override": "检测到优先生效的 AGENTS.override.md，当前 AGENTS.md 不生效，暂不可保存。"
+  "instructions_override": "检测到优先生效的 AGENTS.override.md，当前 AGENTS.md 不生效，暂不可保存。",
+  "settings_group_interface": "外观与语言",
+  "settings_group_agent": "代理与会话",
+  "settings_group_account": "账户与通知",
+  "settings_group_service": "服务与数据"
 }

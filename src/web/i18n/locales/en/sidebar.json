@@ -179,5 +179,9 @@
   "instructions_reload": "Reload file",
   "instructions_saving": "Saving…",
   "instructions_save": "Save file",
-  "instructions_override": "AGENTS.override.md takes precedence. This AGENTS.md is not currently effective; saving is disabled."
+  "instructions_override": "AGENTS.override.md takes precedence. This AGENTS.md is not currently effective; saving is disabled.",
+  "settings_group_interface": "Appearance & language",
+  "settings_group_agent": "Agent & conversations",
+  "settings_group_account": "Account & notifications",
+  "settings_group_service": "Service & data"
 }

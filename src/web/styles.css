@@ -622,63 +622,100 @@ svg {
   flex-shrink: 0;
 }
 .sidebar-settings-dialog {
-  width: min(400px, calc(100vw - 32px));
+  width: min(480px, calc(100vw - 24px));
+  padding: 24px;
 }
-.sidebar-settings-dialog :is(.language-selector, .appearance-selector) {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-  padding: 10px 8px;
-  font-size: 13px;
+.sidebar-settings-dialog .project-dialog-heading {
+  margin-bottom: 20px;
+}
+.settings-sections {
+  display: grid;
+  gap: 20px;
+}
+.sidebar-settings-dialog .settings-section-title {
+  margin: 0 0 8px;
+  padding: 0 2px;
+  color: var(--muted);
+  font-size: 12px;
   line-height: 1.5;
+  font-weight: 600;
 }
-.sidebar-settings-dialog :is(.language-selector, .appearance-selector) > span {
-  flex: 1;
-  min-width: 0;
-}
-.sidebar-settings-dialog :is(.language-selector, .appearance-selector) .select-trigger {
-  flex-shrink: 0;
-  width: 160px;
-  max-width: 55%;
+.settings-section-body {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: light-dark(#f7f8fa, var(--dark-sidebar));
 }
 .sidebar-settings-links {
   display: grid;
-  gap: 4px;
-  padding: 8px 0;
-  border-top: 1px solid var(--border);
 }
-.sidebar-settings-links .button {
+.sidebar-settings-dialog :is(.language-selector, .appearance-selector),
+.sidebar-settings-links > .button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   width: 100%;
   min-width: 0;
-  min-height: 44px;
+  min-height: 50px;
   height: auto;
-  padding: 10px 8px;
-  gap: 10px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 400;
   text-align: left;
   white-space: normal;
+  color: inherit;
 }
-.sidebar-settings-links svg {
-  flex-shrink: 0;
-  color: var(--muted);
+.settings-section-body > :not(:last-child) {
+  border-bottom: 1px solid var(--border);
 }
+.sidebar-settings-links > .button:focus-visible {
+  outline-offset: -3px;
+}
+.sidebar-settings-dialog :is(.language-selector, .appearance-selector) > span,
 .sidebar-settings-label {
   flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
 }
+.sidebar-settings-dialog :is(.language-selector, .appearance-selector) .select-trigger {
+  flex-shrink: 0;
+  width: 180px;
+  max-width: 58%;
+}
+.settings-section-body > :is(.language-selector, .appearance-selector) > svg,
+.sidebar-settings-links > .button > svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
 .sidebar-settings-status {
-  max-width: 40%;
+  max-width: 35%;
   color: var(--muted);
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+@media (max-width: 480px) {
+  .sidebar-settings-dialog {
+    padding: 18px;
+  }
+  .settings-sections {
+    gap: 16px;
+  }
+  .sidebar-settings-dialog :is(.language-selector, .appearance-selector),
+  .sidebar-settings-links > .button {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+}
 .sidebar-settings-execution {
   display: flex;
   gap: 10px;
-  margin-top: 6px;
+  margin-top: 20px;
   border-top: 1px solid var(--border);
-  padding: 16px 8px 0;
+  padding: 16px 2px 0;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.6;
