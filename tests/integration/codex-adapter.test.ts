@@ -353,7 +353,7 @@ describe('verified protocol adapter with a real subprocess', () => {
             { keyPath: 'model', value: 'other-model', mergeStrategy: 'replace' },
             { keyPath: 'model_reasoning_effort', value: 'high', mergeStrategy: 'replace' },
           ],
-          reloadUserConfig: true,
+          reloadUserConfig: false,
         },
       },
     ]);

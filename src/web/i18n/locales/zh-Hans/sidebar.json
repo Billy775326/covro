@@ -166,5 +166,18 @@
   "order_save_failed": "{{v0}} 请重试。",
   "settings": "设置",
   "browser_notifications": "浏览器通知",
-  "browser_notifications_status": "浏览器通知 · {{v0}}"
+  "browser_notifications_status": "浏览器通知 · {{v0}}",
+  "instructions_edit": "全局指令",
+  "instructions_title": "编辑全局指令",
+  "instructions_description": "编辑当前 Covro 使用的 Codex 全局 AGENTS.md，作用于所有项目。已有会话不会自动加载修改，建议新建会话。",
+  "instructions_missing": "AGENTS.md 尚不存在，保存后会创建文件。",
+  "instructions_unsaved": "有未保存的修改",
+  "instructions_saved": "AGENTS.md 已保存",
+  "instructions_discard": "放弃尚未保存的修改？",
+  "instructions_keep": "继续编辑",
+  "instructions_discard_confirm": "放弃修改",
+  "instructions_reload": "重新读取",
+  "instructions_saving": "保存中…",
+  "instructions_save": "保存文件",
+  "instructions_override": "检测到优先生效的 AGENTS.override.md，当前 AGENTS.md 不生效，暂不可保存。"
 }

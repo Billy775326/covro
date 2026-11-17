@@ -166,5 +166,18 @@
   "order_save_failed": "{{v0}} もう一度お試しください。",
   "settings": "設定",
   "browser_notifications": "ブラウザー通知",
-  "browser_notifications_status": "ブラウザー通知 · {{v0}}"
+  "browser_notifications_status": "ブラウザー通知 · {{v0}}",
+  "instructions_edit": "グローバル指示",
+  "instructions_title": "グローバル指示を編集",
+  "instructions_description": "この Covro の Codex 環境で全プロジェクトに使われる AGENTS.md を編集します。既存の会話は自動更新されません。",
+  "instructions_missing": "AGENTS.md はありません。保存すると作成されます。",
+  "instructions_unsaved": "未保存の変更があります",
+  "instructions_saved": "AGENTS.md を保存しました",
+  "instructions_discard": "未保存の変更を破棄しますか？",
+  "instructions_keep": "編集を続ける",
+  "instructions_discard_confirm": "変更を破棄",
+  "instructions_reload": "再読み込み",
+  "instructions_saving": "保存中…",
+  "instructions_save": "ファイルを保存",
+  "instructions_override": "AGENTS.override.md が優先されるため、この AGENTS.md の保存は無効です。"
 }

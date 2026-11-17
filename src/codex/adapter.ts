@@ -1066,7 +1066,8 @@ export class CodexAdapter implements CodexClient {
           mergeStrategy: 'replace',
         },
       ],
-      reloadUserConfig: true,
+      // Do not replay permission defaults changed by another settings entry into active threads.
+      reloadUserConfig: false,
     });
     return { status: result.status };
   }

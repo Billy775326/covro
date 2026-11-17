@@ -399,6 +399,17 @@ export function createApp({
       service.addProject({ ...input, path: resolveProjectPath(input.path, configuration.workDir) }),
     );
   });
+  app.get('/api/instructions/global', async (c) => c.json(await service.readGlobalInstructions()));
+  app.post('/api/instructions/global', async (c) => {
+    const input = z
+      .object({
+        content: z.string().max(256 * 1024),
+        revision: z.string().regex(/^(missing|[a-f0-9]{64})$/),
+      })
+      .strict()
+      .parse(await c.req.json());
+    return c.json(await service.saveGlobalInstructions(input));
+  });
   app.post('/api/projects/:projectId/rename', async (c) =>
     c.json(
       service.renameProject(

@@ -624,15 +624,21 @@ svg {
 .sidebar-settings-dialog {
   width: min(400px, calc(100vw - 32px));
 }
-.sidebar-settings-dialog .language-selector {
+.sidebar-settings-dialog :is(.language-selector, .appearance-selector) {
+  display: flex;
+  align-items: center;
   gap: 10px;
+  margin: 0;
   padding: 10px 8px;
   font-size: 13px;
+  line-height: 1.5;
 }
-.sidebar-settings-dialog .language-selector > span {
+.sidebar-settings-dialog :is(.language-selector, .appearance-selector) > span {
   flex: 1;
+  min-width: 0;
 }
-.sidebar-settings-dialog .language-selector .select-trigger {
+.sidebar-settings-dialog :is(.language-selector, .appearance-selector) .select-trigger {
+  flex-shrink: 0;
   width: 160px;
   max-width: 55%;
 }
@@ -3207,21 +3213,24 @@ input[type='radio'] {
 }
 .raw-details {
   margin: 10px 0;
-  color: light-dark(#98a097, var(--dark-text-muted));
-  font-size: 10px;
+  color: light-dark(#626b63, var(--dark-text-secondary));
+  font-size: 12px;
+  line-height: 1.65;
 }
 .raw-details summary {
-  color: light-dark(#8d978d, var(--dark-text-secondary));
-  font-size: 10px;
+  color: light-dark(#566158, var(--dark-text-secondary));
+  font-size: 12px;
 }
 .raw-details pre {
   max-height: 260px;
   overflow: auto;
-  background: #ffffff80;
+  background: light-dark(#ffffff80, var(--dark-sidebar));
+  color: light-dark(#424b44, var(--dark-text));
   border: 1px solid light-dark(#e9ebe4, var(--dark-border));
   border-radius: 5px;
-  padding: 9px;
-  font-size: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.65;
 }
 .diagnostics > summary {
   display: flex;
@@ -5737,20 +5746,6 @@ dd {
   min-width: 160px;
 }
 
-/* Keep appearance controls aligned with the existing language setting. */
-.sidebar-settings-dialog .appearance-selector {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 12px 0;
-}
-.sidebar-settings-dialog .appearance-selector > span {
-  flex: 1;
-}
-.sidebar-settings-dialog .appearance-selector .select-trigger {
-  width: 150px;
-}
-
 :root[data-theme='dark'] {
   color-scheme: dark;
 }
@@ -5765,6 +5760,45 @@ dd {
 }
 :root[data-theme='dark'] .project-dialog::backdrop {
   background: rgb(10 12 15 / 45%);
+}
+
+.instructions-dialog {
+  width: min(900px, calc(100vw - 32px));
+}
+.instructions-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.instructions-content {
+  display: block;
+  width: 100%;
+  min-height: min(52dvh, 500px);
+  resize: vertical;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: light-dark(#f7f8fa, var(--dark-sidebar));
+  color: inherit;
+  font-size: 13px;
+  line-height: 1.65;
+  tab-size: 2;
+}
+.instructions-discard {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.instructions-discard .button + .button {
+  margin-left: 8px;
+}
+
+.instructions-path {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .global-defaults-dialog {

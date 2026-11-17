@@ -1,4 +1,5 @@
 import { GlobalDefaultsDialog } from './GlobalDefaultsDialog';
+import { GlobalInstructionsEditor } from './GlobalInstructionsEditor';
 import { useTheme, setTheme, type Theme } from '../lib/theme';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -30,6 +31,7 @@ interface Props {
 
 export function SidebarSettings(props: Props) {
   const [open, setOpen] = useState(false);
+  const [instructionsOpen, setInstructionsOpen] = useState(false);
   const [defaultsOpen, setDefaultsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   return (
@@ -48,9 +50,16 @@ export function SidebarSettings(props: Props) {
       {open && (
         <SettingsDialog
           {...props}
+          onInstructions={() => setInstructionsOpen(true)}
           onDefaults={() => setDefaultsOpen(true)}
           onAccountUsage={() => setAccountOpen(true)}
           onClose={() => setOpen(false)}
+        />
+      )}
+      {instructionsOpen && (
+        <GlobalInstructionsEditor
+          disabled={props.offline ?? false}
+          onClose={() => setInstructionsOpen(false)}
         />
       )}
       {defaultsOpen && (
@@ -74,8 +83,14 @@ function SettingsDialog({
   onClose,
   onAccountUsage,
   onDefaults,
+  onInstructions,
   ...props
-}: Props & { onClose: () => void; onAccountUsage: () => void; onDefaults: () => void }) {
+}: Props & {
+  onClose: () => void;
+  onAccountUsage: () => void;
+  onInstructions: () => void;
+  onDefaults: () => void;
+}) {
   const theme = useTheme();
   const dialog = useRef<HTMLDialogElement>(null);
   const { onBackups } = props;
@@ -150,6 +165,11 @@ function SettingsDialog({
         <Button variant="ghost" onClick={() => navigate(onDefaults)}>
           <Settings size={18} aria-hidden="true" />
           <span className="sidebar-settings-label">{t('settings:global_defaults_title')}</span>
+          <ChevronRight size={16} aria-hidden="true" />
+        </Button>
+        <Button variant="ghost" onClick={() => navigate(onInstructions)}>
+          <Settings size={18} aria-hidden="true" />
+          <span className="sidebar-settings-label">{t('sidebar:instructions_edit')}</span>
           <ChevronRight size={16} aria-hidden="true" />
         </Button>
         <Button variant="ghost" onClick={() => navigate(onAccountUsage)}>
