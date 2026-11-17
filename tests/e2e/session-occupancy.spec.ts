@@ -208,8 +208,10 @@ test('expanded technical error details are readable in both themes and narrow la
       await expect(details).toBeVisible();
       const metrics = await details.evaluate((element) => {
         const rgba = (value: string) => {
-          const parts = value.match(/[\d.]+/g)!.map(Number);
-          return [parts[0], parts[1], parts[2], parts[3] ?? 1];
+          const parts = value.match(/[\d.]+/g)?.map(Number);
+          if (!parts || parts.length < 3 || parts.some((part) => !Number.isFinite(part)))
+            throw new Error('Invalid computed RGB color');
+          return [parts[0]!, parts[1]!, parts[2]!, parts[3] ?? 1] as const;
         };
         let background = [255, 255, 255];
         const ancestors: Element[] = [];
@@ -218,18 +220,18 @@ test('expanded technical error details are readable in both themes and narrow la
         for (const parent of ancestors) {
           const [r, g, b, alpha] = rgba(getComputedStyle(parent).backgroundColor);
           background = [r, g, b].map(
-            (value, index) => value * alpha + background[index] * (1 - alpha),
+            (value, index) => value * alpha + background[index]! * (1 - alpha),
           );
         }
         const style = getComputedStyle(element);
-        const luminance = (rgb: number[]) =>
+        const luminance = (rgb: readonly number[]) =>
           rgb
             .slice(0, 3)
             .map((value) => {
               const v = value / 255;
               return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
             })
-            .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+            .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i]!, 0);
         const foreground = luminance(rgba(style.color));
         const back = luminance(background);
         return {
