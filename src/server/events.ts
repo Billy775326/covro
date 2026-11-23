@@ -23,9 +23,10 @@ export class EventHub {
   private discardedThrough = 0;
   private bytes = 0;
   private readonly events: { event: BusinessEvent; bytes: number }[] = [];
-  private readonly listeners = new Set<{ threadId: string; send: Listener }>();
+  private readonly listeners = new Map<string, Set<Listener>>();
   private readonly runtimeListeners = new Set<Listener>();
   private readonly overviewListeners = new Set<Listener>();
+  private readonly threadSequences = new Map<string, number>();
   private readonly threadPatches = new Map<string, ThreadPatchBuilder>();
 
   constructor(private readonly maxBytes = 16 * 1024 * 1024) {}
@@ -39,13 +40,16 @@ export class EventHub {
     payload: ThreadView | ThreadPatch | SystemInfo | Operation,
     threadId?: string,
   ): void {
+    const detailId = kind === 'threadPatch' || kind === 'thread' ? threadId : undefined;
     const event: BusinessEvent = {
       type: 'event',
       cursor: { serverEpoch: this.serverEpoch, seq: ++this.seq },
       kind,
       payload: structuredClone(payload),
       ...(threadId === undefined ? {} : { threadId }),
+      ...(detailId ? { previousThreadSeq: this.threadSequences.get(detailId) ?? 0 } : {}),
     };
+    if (detailId) this.threadSequences.set(detailId, this.seq);
     const bytes = Buffer.byteLength(JSON.stringify(event));
     this.events.push({ event, bytes });
     this.bytes += bytes;
@@ -54,9 +58,10 @@ export class EventHub {
       this.bytes -= removed.bytes;
       this.discardedThrough = removed.event.cursor.seq;
     }
-    for (const listener of this.listeners)
-      if (!event.threadId || event.threadId === listener.threadId)
-        this.deliver(listener.send, event);
+    const listeners =
+      threadId === undefined ? this.listeners.values() : [this.listeners.get(threadId) ?? []];
+    for (const threadListeners of listeners)
+      for (const send of threadListeners) this.deliver(send, event);
     if (kind === 'runtime')
       for (const listener of this.runtimeListeners) this.deliver(listener, event);
   }
@@ -136,21 +141,25 @@ export class EventHub {
     after: Cursor | undefined,
     send: Listener,
     incremental = false,
+    signalReplayBoundary = false,
   ): () => void {
+    const threadSeq = this.threadSequences.get(threadId) ?? 0;
     const replayable =
       after?.serverEpoch === this.serverEpoch &&
-      after.seq >= this.discardedThrough &&
+      (after.seq >= this.discardedThrough || (signalReplayBoundary && after.seq >= threadSeq)) &&
       after.seq <= this.seq;
     const queued: ServerMessage[] = [];
     let initializing = true;
-    const listener = {
-      threadId,
-      send: (message: ServerMessage) => {
-        if (initializing) queued.push(message);
-        else send(message);
-      },
+    const listener = (message: ServerMessage) => {
+      if (initializing) queued.push(message);
+      else send(message);
     };
-    this.listeners.add(listener);
+    let threadListeners = this.listeners.get(threadId);
+    if (!threadListeners) {
+      threadListeners = new Set<Listener>();
+      this.listeners.set(threadId, threadListeners);
+    }
+    threadListeners.add(listener);
     // No await may occur between reading the snapshot and registering the listener.
     let boundary = this.seq;
     if (replayable && after) {
@@ -161,6 +170,13 @@ export class EventHub {
           (!event.threadId || event.threadId === threadId)
         )
           this.deliver(send, event);
+      if (signalReplayBoundary)
+        this.deliver(send, {
+          type: 'subscribed',
+          cursor: { serverEpoch: this.serverEpoch, seq: boundary },
+          threadId,
+          threadSeq,
+        });
     } else {
       boundary = this.seq;
       this.deliver(
@@ -179,7 +195,9 @@ export class EventHub {
     for (const message of queued)
       if (message.type === 'event' && message.cursor.seq > boundary) this.deliver(send, message);
     return () => {
-      this.listeners.delete(listener);
+      threadListeners.delete(listener);
+      if (!threadListeners.size && this.listeners.get(threadId) === threadListeners)
+        this.listeners.delete(threadId);
     };
   }
 
