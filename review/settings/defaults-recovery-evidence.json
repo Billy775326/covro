@@ -1,0 +1,74 @@
+{
+  "sourceCommit": "a10e299f1b7fdd3b4d072a88b0c18adfcd8321e4",
+  "upstreamCommit": "78cb9e96d31fd2a40c7fddfa07221c6e73defdf2",
+  "capturedOn": "2026-11-24",
+  "environment": {
+    "node": "24.22.3",
+    "pnpm": "12.11.2",
+    "playwright": "1.64.0",
+    "data": "Isolated mock Codex fixture; no real account data or model requests."
+  },
+  "screenshots": [
+    {
+      "file": "defaults-recovery-1440.png",
+      "sha256": "d92f14fe11e7b70f27c9e7652099efeb63a9561c59edd4d61106f3d48497119b"
+    },
+    {
+      "file": "defaults-recovery-390.png",
+      "sha256": "490236ad756949e99d5600302296ca6d78cf4f2b19ba59aaa3fd03fd68a8e7ef"
+    },
+    {
+      "file": "defaults-saved-dark-390.png",
+      "sha256": "3916051baa077a8e0d6ad0313667550ba2232ea18c7ddcad377e7ab663f636e0"
+    }
+  ],
+  "validation": {
+    "static": [
+      "pnpm format:check",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm build",
+      "node --import tsx scripts/verify-database-contract.ts"
+    ],
+    "unitIntegration": {
+      "initialFullRun": {
+        "passed": 1727,
+        "failed": 2,
+        "skipped": 2
+      },
+      "environmentFailures": "The two chmod permission-denial tests fail when root retains DAC bypass capabilities. The tests and corresponding filesystem implementation are identical to upstream.",
+      "restrictedCapabilityRerun": {
+        "files": [
+          "tests/integration/file-references.test.ts",
+          "tests/integration/unassigned-workspaces.test.ts"
+        ],
+        "command": "setpriv --bounding-set=-dac_override,-dac_read_search pnpm exec vitest run tests/integration/file-references.test.ts tests/integration/unassigned-workspaces.test.ts --maxWorkers=1",
+        "passed": 27,
+        "failed": 0
+      },
+      "distinctPassingCases": 1729,
+      "singleCleanFullRun": false
+    },
+    "browser": {
+      "selectedDistinctPassingCases": 50,
+      "scope": [
+        "account usage",
+        "four-locale desktop/mobile backups",
+        "global defaults",
+        "service configuration",
+        "manual service restart",
+        "categorized settings at 320/390/1440px",
+        "appearance",
+        "notification-click focus restoration"
+      ],
+      "batches": "13 completed cases retained from a resource-interrupted run on identical source, then remaining 2 + 34 + 1 passed. The interrupted case was rerun; an incomplete run is not represented as a complete pass.",
+      "fullBrowserSuiteRun": false
+    },
+    "boundaries": [
+      "No real model prompts or live account acceptance.",
+      "No production deployment, release, version bump, or schema change relative to the integrated upstream.",
+      "The previous backup cross-tab/localization timeout did not reproduce in the current selected runs; its original cause was not established."
+    ]
+  },
+  "privacyReview": "Images were visually reviewed. Only the settings region is captured, with synthetic model names and no credentials, user conversation data, or filesystem paths. PNG chunks are limited to IHDR, IDAT, IEND."
+}
