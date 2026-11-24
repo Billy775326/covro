@@ -1042,6 +1042,10 @@ export class CodexAdapter implements CodexClient {
   }
   private configuredPermissionMode(config: ConfigReadResponse['config']) {
     const profile = config.default_permissions;
+    // Merged config can retain a profile from one layer and a legacy sandbox from
+    // another. Managed requirements also affect which mechanism Codex selects.
+    // Without an effective native boundary, neither field proves the preset.
+    if (profile && config.sandbox_mode != null) return null;
     const workspace = config.sandbox_workspace_write;
     const customBoundary = Boolean(
       workspace &&
@@ -1073,7 +1077,7 @@ export class CodexAdapter implements CodexClient {
         permissionMode: this.configuredPermissionMode(config),
       },
       models:
-        this.state.codexVersion === '0.171.0'
+        this.state.codexVersion === VERIFIED_ADAPTER_CODEX_VERSION
           ? (await this.modelCatalog(config.model_provider ?? 'openai')).models
           : this.state.models,
       capabilities: await this.readPermissionCapabilities(undefined, config),

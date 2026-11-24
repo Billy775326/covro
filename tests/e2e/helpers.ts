@@ -70,6 +70,10 @@ export async function controlRuntime(
       | 'providerModelFailure'
       | 'modelPageSize'
       | 'configModel'
+      | 'configOverrides'
+      | 'configLayers'
+      | 'configOrigins'
+      | 'threadSandbox'
     >;
     preview?: { threadId: string; projectId: string };
     stopPreview?: string;

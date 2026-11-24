@@ -43,6 +43,7 @@ import type { JsonValue } from '../../src/codex/generated/serde_json/JsonValue.j
 import type { GuardianApprovalReviewStatus } from '../../src/codex/generated/v2/GuardianApprovalReviewStatus.js';
 import type { PermissionRequirements, PermissionSelection } from '../../src/codex/permissions.js';
 import type { ActivePermissionProfile } from '../../src/codex/generated/v2/ActivePermissionProfile.js';
+import type { ConfigReadResponse } from '../../src/codex/generated/v2/ConfigReadResponse.js';
 
 export interface SimulatorOptions {
   optionsPath?: string;
@@ -54,6 +55,9 @@ export interface SimulatorOptions {
   rateLimitNotification?: 'account' | 'routing' | 'limits';
   accountAfterNotification?: GetAccountResponse;
   configOverrides?: Record<string, JsonValue>;
+  configLayers?: ConfigReadResponse['layers'];
+  configOrigins?: ConfigReadResponse['origins'];
+  threadSandbox?: 'read-only' | 'workspace-write' | 'danger-full-access';
   requirements?: Partial<PermissionRequirements> | null;
   guardianApproval?: boolean;
   rejectPermissions?: boolean;
@@ -1991,9 +1995,9 @@ function receive(request: ClientRequest): void {
           ...savedPermissionDefaults,
           ...options.configOverrides,
         },
-        origins: {},
+        origins: options.configOrigins ?? {},
         layers: request.params.includeLayers
-          ? [
+          ? (options.configLayers ?? [
               {
                 name: {
                   type: 'user',
@@ -2004,7 +2008,7 @@ function receive(request: ClientRequest): void {
                 config: {},
                 disabledReason: null,
               },
-            ]
+            ])
           : null,
       });
       break;
@@ -2120,6 +2124,18 @@ function receive(request: ClientRequest): void {
       const thread = makeThread(request.params.cwd ?? process.cwd());
       thread.ephemeral = request.params.ephemeral ?? false;
       thread.modelProvider = request.params.modelProvider ?? thread.modelProvider;
+      if (options.threadSandbox) {
+        applySettings(thread, { sandbox: options.threadSandbox });
+        profiles.set(thread.id, {
+          id:
+            options.threadSandbox === 'workspace-write'
+              ? ':workspace'
+              : options.threadSandbox === 'read-only'
+                ? ':read-only'
+                : ':danger-full-access',
+          extends: null,
+        });
+      }
       if (savedPermissionDefaults.sandbox_mode) {
         const sandbox = savedPermissionDefaults.sandbox_mode as
           'workspace-write' | 'read-only' | 'danger-full-access';

@@ -14,6 +14,10 @@
 
 ### Fixed
 
+- Keep permissions undetermined when named profiles and legacy sandbox settings coexist, so new conversations cannot be labeled read-only from an inactive profile.
+- Show the computed unknown permission label in the composer instead of replacing it with a generic placeholder.
+- Read global default model choices from the current provider on the verified Codex version instead of using the startup catalog.
+
 - Validate new-conversation defaults against the global Codex provider and await model capability checks before writing configuration.
 
 - Keep session-default saves out of persistent task tracking so a lost acknowledgement cannot block backups or updates. Reload configuration to confirm an uncertain result without resubmitting the write.

@@ -1843,15 +1843,108 @@ it('preserves native skill items alongside text and images in turn starts', asyn
     });
 });
 
+describe('configured permission precedence', () => {
+  it.each(['0.171.0', '0.172.0'])(
+    'does not label a writable layered configuration read-only on Codex %s',
+    async (codexVersion) => {
+      const user = { type: 'user' as const, file: '/tmp/user-config.toml', profile: null };
+      const project = { type: 'project' as const, dotCodexFolder: '/tmp/project/.codex' };
+      const { adapter, requests } = await fixture(
+        {
+          codexVersion,
+          configOverrides: { default_permissions: ':read-only', sandbox_mode: 'workspace-write' },
+          configLayers: [
+            {
+              name: user,
+              version: 'user-v1',
+              config: { default_permissions: ':read-only' },
+              disabledReason: null,
+            },
+            {
+              name: project,
+              version: 'project-v1',
+              config: { sandbox_mode: 'workspace-write' },
+              disabledReason: null,
+            },
+          ],
+          configOrigins: {
+            default_permissions: { name: user, version: 'user-v1' },
+            sandbox_mode: { name: project, version: 'project-v1' },
+          },
+          threadSandbox: 'workspace-write',
+        },
+        15000,
+      );
+      expect((await adapter.readRuntimeSettings('/tmp/project')).permissionMode).toBe(null);
+      expect((await adapter.readGlobalDefaults()).settings.permissionMode).toBe(null);
+      const thread = await adapter.createThread('/tmp/project');
+      expect(thread.runtimeSettings).toMatchObject({
+        sandbox: 'workspace-write',
+        permissionMode: 'ask',
+      });
+      const start = (await requests()).find((call) => call.method === 'thread/start')!;
+      expect(start.params).not.toHaveProperty('sandbox');
+      expect(start.params).not.toHaveProperty('permissions');
+    },
+  );
+
+  const mixedConfigs: NonNullable<SimulatorOptions['configOverrides']>[] = [
+    { default_permissions: ':read-only', sandbox_mode: 'workspace-write' },
+    { default_permissions: ':workspace', sandbox_mode: 'read-only' },
+    { default_permissions: ':read-only', sandbox_mode: 'read-only' },
+    {
+      default_permissions: ':danger-full-access',
+      sandbox_mode: 'workspace-write',
+      approval_policy: 'never',
+    },
+  ];
+  it.each(mixedConfigs)(
+    'keeps mixed permission mechanisms undetermined: %j',
+    async (configOverrides) => {
+      const { adapter } = await fixture({ configOverrides });
+      expect((await adapter.readRuntimeSettings('/tmp')).permissionMode).toBe(null);
+      expect((await adapter.readGlobalDefaults()).settings.permissionMode).toBe(null);
+    },
+  );
+
+  const standardConfigs: {
+    config: NonNullable<SimulatorOptions['configOverrides']>;
+    mode: string;
+  }[] = [
+    { config: { sandbox_mode: 'read-only' }, mode: 'read-only' },
+    { config: { sandbox_mode: 'workspace-write' }, mode: 'ask' },
+    {
+      config: { sandbox_mode: 'workspace-write', approvals_reviewer: 'auto_review' },
+      mode: 'auto-review',
+    },
+    {
+      config: { sandbox_mode: 'danger-full-access', approval_policy: 'never' },
+      mode: 'full-access',
+    },
+    { config: { sandbox_mode: null, default_permissions: ':read-only' }, mode: 'read-only' },
+    { config: { sandbox_mode: null, default_permissions: ':workspace' }, mode: 'ask' },
+  ];
+  it.each(standardConfigs)(
+    'retains unambiguous standard permission modes: $mode $config',
+    async ({ config, mode }) => {
+      const { adapter } = await fixture({ configOverrides: config });
+      expect((await adapter.readRuntimeSettings('/tmp')).permissionMode).toBe(mode);
+      expect((await adapter.readGlobalDefaults()).settings.permissionMode).toBe(mode);
+    },
+  );
+});
+
 describe('global session defaults', () => {
   it('uses the global provider catalog for defaults and awaits validation before writing', async () => {
     const { adapter, requests } = await fixture({
-      codexVersion: '0.171.0',
-      modelProvider: 'global',
+      codexVersion: '0.172.0',
+      modelProvider: 'startup',
+      configOverrides: { model_provider: 'global' },
       configModel: 'global-first',
       configEffort: 'high',
       modelPageSize: 1,
       providerModels: {
+        startup: [{ id: 'startup-only', efforts: ['high'] }],
         global: [
           { id: 'global-first', efforts: ['high'] },
           { id: 'global-second', efforts: ['low'] },
