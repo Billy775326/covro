@@ -1,0 +1,214 @@
+{
+  "pullRequest": "https://github.com/yuzheng14/covro/pull/361",
+  "applicationChangesCommit": "9953658f56b23c901315baef700e4d0dbcc535b0",
+  "integrationCommit": "53accc72a7c6189bf7389dc5d4e04d328f7b77c0",
+  "upstreamCommit": "08210ed08d1be9484153e35bba4782d07ecf3250",
+  "integrationScope": [
+    "package.json version metadata",
+    ".release-please-manifest.json",
+    "CHANGELOG.md upstream release entries"
+  ],
+  "applicationSourceChangedByIntegration": false,
+  "environment": {
+    "node": "24.22.3",
+    "pnpm": "12.11.2",
+    "browser": "Playwright Chromium",
+    "testData": "Synthetic fixtures and isolated Codex home"
+  },
+  "applicationValidation": {
+    "checksPassed": [
+      "pnpm format:check",
+      "pnpm typecheck",
+      "pnpm lint",
+      "pnpm build",
+      "node --import tsx scripts/verify-database-contract.ts"
+    ],
+    "unitIntegration": {
+      "passed": 1744,
+      "declaredSkipped": 2,
+      "failed": 0,
+      "runs": [
+        {
+          "run": "shard-1",
+          "passed": 162,
+          "declaredSkipped": 0
+        },
+        {
+          "run": "shard-2",
+          "passed": 118,
+          "declaredSkipped": 0
+        },
+        {
+          "run": "shard-3",
+          "passed": 166,
+          "declaredSkipped": 0
+        },
+        {
+          "run": "shard-4",
+          "passed": 130,
+          "declaredSkipped": 0
+        },
+        {
+          "run": "shard-5",
+          "passed": 103,
+          "declaredSkipped": 0
+        },
+        {
+          "run": "shard-6",
+          "passed": 234,
+          "declaredSkipped": 0
+        },
+        {
+          "run": "shard-7",
+          "passed": 119,
+          "declaredSkipped": 0
+        },
+        {
+          "run": "shard-9",
+          "passed": 178,
+          "declaredSkipped": 0
+        },
+        {
+          "run": "shard-10",
+          "passed": 132,
+          "declaredSkipped": 0
+        },
+        {
+          "run": "shard-11",
+          "passed": 188,
+          "declaredSkipped": 1
+        },
+        {
+          "run": "shard-12",
+          "passed": 85,
+          "declaredSkipped": 1
+        },
+        {
+          "run": "shard-8-short",
+          "passed": 113
+        },
+        {
+          "run": "migration-group-1",
+          "passed": 1,
+          "filteredSkipsExcluded": true
+        },
+        {
+          "run": "migration-group-2",
+          "passed": 5,
+          "filteredSkipsExcluded": true
+        },
+        {
+          "run": "migration-group-3",
+          "passed": 1,
+          "filteredSkipsExcluded": true
+        },
+        {
+          "run": "migration-group-4",
+          "passed": 1,
+          "filteredSkipsExcluded": true
+        },
+        {
+          "run": "migration-group-5",
+          "passed": 1,
+          "filteredSkipsExcluded": true
+        },
+        {
+          "run": "migration-group-6",
+          "passed": 1,
+          "filteredSkipsExcluded": true
+        },
+        {
+          "run": "migration-group-7",
+          "passed": 1,
+          "filteredSkipsExcluded": true
+        },
+        {
+          "run": "migration-group-8",
+          "passed": 1,
+          "filteredSkipsExcluded": true
+        },
+        {
+          "run": "migration-group-9",
+          "passed": 1,
+          "filteredSkipsExcluded": true
+        },
+        {
+          "run": "migration-group-10",
+          "passed": 1,
+          "filteredSkipsExcluded": true
+        },
+        {
+          "run": "migration-group-11",
+          "passed": 2,
+          "filteredSkipsExcluded": true
+        }
+      ],
+      "interruptedShard8NotCounted": true
+    },
+    "browser": {
+      "selectedDistinctPassed": 38,
+      "interruptedRunCompletedCases": 37,
+      "remainingPassed": 1,
+      "additionalAccessibilityEvidenceCases": 2
+    },
+    "executionNotes": [
+      "Unit/integration coverage was aggregated across sequential batches with one worker. Root DAC override capabilities were removed for permission-denial fixtures.",
+      "An interrupted unit shard was excluded; all of its files and migration cases were subsequently completed in smaller batches.",
+      "The selected browser run ended with SIGTERM after 37 completed passes; its remaining case passed separately. The signal source was not established.",
+      "An initial targeted run had an initialization timeout in an unchanged short-deadline test. The same case passed during subsequent complete coverage without changing its assertions."
+    ]
+  },
+  "integrationValidation": {
+    "commit": "53accc72a7c6189bf7389dc5d4e04d328f7b77c0",
+    "checksPassed": [
+      "pnpm format:check",
+      "pnpm typecheck",
+      "pnpm build",
+      "node --import tsx scripts/verify-database-contract.ts"
+    ],
+    "focusedTests": {
+      "passed": 21,
+      "failed": 0,
+      "files": [
+        "tests/integration/covro-release-source.test.ts",
+        "tests/integration/covro-publication.test.ts",
+        "tests/integration/database-version.test.ts",
+        "tests/web/settings.test.ts"
+      ]
+    },
+    "applicationValidationReused": true
+  },
+  "limits": {
+    "realModelRequests": 0,
+    "productionAccountAcceptance": false,
+    "nativeCrossPlatformAcceptance": false,
+    "fullBrowserSuiteRun": false
+  },
+  "screenshots": [
+    {
+      "file": "permission-precedence-1440.png",
+      "sha256": "468c35e1acf2e08a9b9fb312923151cf40b2e6f968ccc4998fe85b1862092a60",
+      "pngChunkTypes": [
+        "IDAT",
+        "IEND",
+        "IHDR"
+      ],
+      "capturedAtApplicationCommit": "9953658f56b23c901315baef700e4d0dbcc535b0"
+    },
+    {
+      "file": "permission-precedence-390.png",
+      "sha256": "1e31804935ffbff3795ca9a193e2561248b08bf1f60c3182377d21b7a7d4eef8",
+      "pngChunkTypes": [
+        "IDAT",
+        "IEND",
+        "IHDR"
+      ],
+      "capturedAtApplicationCommit": "9953658f56b23c901315baef700e4d0dbcc535b0"
+    }
+  ],
+  "screenshotNotes": [
+    "Cropped composer screenshots use synthetic fixture data.",
+    "The mobile control uses an icon; its accessible description was verified in two focused desktop/mobile cases.",
+    "No production conversations, credentials, or filesystem paths are included."
+  ]
+}
