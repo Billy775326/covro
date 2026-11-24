@@ -1300,7 +1300,9 @@ export function App() {
         />
       )}
       {backupsOpen && <BackupSettings onClose={() => setBackupsOpen(false)} />}
-      {gatewaySettingsOpen && <GatewaySettings onClose={() => setGatewaySettingsOpen(false)} />}
+      {gatewaySettingsOpen && (
+        <GatewaySettings onClose={() => setGatewaySettingsOpen(false)} connected={!offline} />
+      )}
       {updatesOpen && <UpdateSettings updates={updates} onClose={() => setUpdatesOpen(false)} />}
     </WorkspaceLayout>
   );
