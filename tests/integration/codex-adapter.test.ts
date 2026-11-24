@@ -80,6 +80,120 @@ async function waitFor<T>(get: () => T | undefined): Promise<T> {
 }
 
 describe('verified protocol adapter with a real subprocess', () => {
+  it.each([null, 'retired-model'])(
+    'does not infer effort or Fast from another catalog model when the effective model is %s',
+    async (configModel) => {
+      const { adapter, requests } = await fixture({
+        codexVersion: '0.171.0',
+        configModel,
+      });
+      await expect(adapter.createThread('/tmp', { serviceTier: 'fast' })).rejects.toMatchObject({
+        code: 'VALIDATION_ERROR',
+      });
+      await expect(adapter.createThread('/tmp', { reasoningEffort: 'low' })).rejects.toMatchObject({
+        code: 'VALIDATION_ERROR',
+      });
+      expect((await requests()).filter((entry) => entry.method === 'thread/start')).toHaveLength(0);
+      await expect(adapter.createThread('/tmp')).resolves.toHaveProperty('id');
+    },
+  );
+  it('keeps a resumed provider catalog on every page and validates effort and Fast against that provider', async () => {
+    const { adapter, requests } = await fixture({
+      codexVersion: '0.171.0',
+      modelProvider: 'current',
+      threadModelProviders: ['old'],
+      modelPageSize: 1,
+      providerModels: {
+        current: [{ id: 'current-only', efforts: ['low'], tiers: ['fast'] }],
+        old: [
+          { id: 'simulated-model', efforts: ['medium'] },
+          { id: 'old-only', efforts: ['high'] },
+        ],
+      },
+    });
+    const thread = await adapter.createThread('/tmp');
+    expect(thread.runtimeSettings?.modelCatalog).toMatchObject({
+      provider: 'old',
+      models: [{ id: 'simulated-model' }, { id: 'old-only' }],
+    });
+    expect((await adapter.readThread(thread.id)).runtimeSettings?.modelCatalog?.provider).toBe(
+      'old',
+    );
+    await expect(
+      adapter.startTurn(thread.id, '/tmp', 'wrong provider', { model: 'current-only' }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    await expect(
+      adapter.startTurn(thread.id, '/tmp', 'wrong tier', {
+        model: 'old-only',
+        serviceTier: 'fast',
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    await expect(
+      adapter.startTurn(thread.id, '/tmp', 'wrong effort', {
+        model: 'old-only',
+        reasoningEffort: 'low',
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    await adapter.startTurn(thread.id, '/tmp', 'old provider', {
+      model: 'old-only',
+      reasoningEffort: 'high',
+    });
+    const calls = await requests();
+    expect(
+      calls.filter((entry) => entry.method === 'turn/start' && entry.params.threadId === thread.id),
+    ).toHaveLength(1);
+    const pages = calls.filter(
+      (entry) => entry.method === 'model/list' && entry.params.cursor === '1',
+    );
+    expect(pages.length).toBeGreaterThan(1);
+    expect(pages.every((entry) => entry.params.modelProvider === 'old')).toBe(true);
+    expect(
+      (await adapter.resumeThread(thread.id, '/tmp')).runtimeSettings?.modelCatalog?.provider,
+    ).toBe('old');
+  });
+  it('keeps history readable when its provider catalog fails, without borrowing the default catalog', async () => {
+    const { adapter, requests } = await fixture({
+      codexVersion: '0.171.0',
+      modelProvider: 'current',
+      threadModelProviders: ['old'],
+      providerModelFailure: 'old',
+    });
+    const thread = await adapter.createThread('/tmp');
+    expect((await adapter.readThread(thread.id)).runtimeSettings?.modelCatalog).toEqual({
+      provider: 'old',
+      models: [],
+      unavailable: true,
+    });
+    await expect(
+      adapter.startTurn(thread.id, '/tmp', 'blocked selection', { model: 'simulated-model' }),
+    ).rejects.toMatchObject({ rpcCode: -32600 });
+    expect((await requests()).filter((entry) => entry.method === 'turn/start')).toHaveLength(0);
+  });
+  it('does not persist a foreign provider selection as the new-session default, even for a shared model name', async () => {
+    const { adapter, requests } = await fixture({
+      codexVersion: '0.171.0',
+      modelProvider: 'current',
+    });
+    expect(
+      await adapter.saveModelDefaults({
+        model: 'simulated-model',
+        reasoningEffort: 'medium',
+        modelProvider: 'old',
+      }),
+    ).toEqual({ status: 'threadOnly' });
+    expect((await requests()).some((entry) => entry.method === 'config/batchWrite')).toBe(false);
+    expect(
+      await adapter.saveModelDefaults({
+        model: 'simulated-model',
+        reasoningEffort: 'medium',
+        modelProvider: 'current',
+      }),
+    ).toEqual({ status: 'ok' });
+    expect((await requests()).filter((entry) => entry.method === 'config/batchWrite')).toHaveLength(
+      1,
+    );
+  });
+
   it('uses native fuzzy file search roots and cancels only its own token without starting another scan', async () => {
     const logs = captureLogger();
     const { adapter, dir, requests } = await fixture({}, 5000, { logger: logs.logger });
@@ -1614,6 +1728,7 @@ describe('verified protocol adapter with a real subprocess', () => {
     (timing) => {
       const item: ThreadItem = {
         type: 'agentMessage',
+        moderation: null,
         id: 'timed-message',
         text: 'Still working',
         phase: 'commentary',
@@ -1624,6 +1739,7 @@ describe('verified protocol adapter with a real subprocess', () => {
       };
       expect(mapItem(item)).toEqual({
         type: 'agentMessage',
+        moderation: null,
         id: 'timed-message',
         text: 'Still working',
       });
@@ -1728,6 +1844,50 @@ it('preserves native skill items alongside text and images in turn starts', asyn
 });
 
 describe('global session defaults', () => {
+  it('uses the global provider catalog for defaults and awaits validation before writing', async () => {
+    const { adapter, requests } = await fixture({
+      codexVersion: '0.171.0',
+      modelProvider: 'global',
+      configModel: 'global-first',
+      configEffort: 'high',
+      modelPageSize: 1,
+      providerModels: {
+        global: [
+          { id: 'global-first', efforts: ['high'] },
+          { id: 'global-second', efforts: ['low'] },
+        ],
+        other: [{ id: 'other-only', efforts: ['high'] }],
+      },
+    });
+    const before = (await requests()).length;
+    const initial = await adapter.readGlobalDefaults();
+    expect(initial.models.map((model) => model.id)).toEqual(['global-first', 'global-second']);
+    await adapter.saveGlobalDefaults({
+      version: initial.version,
+      settings: { model: 'global-second', reasoningEffort: 'low', permissionMode: null },
+    });
+    const saved = await adapter.readGlobalDefaults();
+    for (const settings of [
+      { model: 'other-only', reasoningEffort: 'high', permissionMode: null },
+      { model: 'global-second', reasoningEffort: 'high', permissionMode: null },
+    ])
+      await expect(
+        adapter.saveGlobalDefaults({ version: saved.version, settings }),
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    const calls = (await requests()).slice(before);
+    expect(calls.filter((call) => call.method === 'config/batchWrite')).toHaveLength(1);
+    expect(
+      calls
+        .filter((call) => call.method === 'config/read')
+        .every((call) => !('cwd' in call.params)),
+    ).toBe(true);
+    const pages = calls.filter(
+      (call) => call.method === 'model/list' && call.params.cursor === '1',
+    );
+    expect(pages.length).toBeGreaterThan(0);
+    expect(pages.every((call) => call.params.modelProvider === 'global')).toBe(true);
+  });
+
   it('reads user defaults without project cwd and atomically saves for new threads only', async () => {
     const { adapter, requests } = await fixture({ models: ['simulated-model', 'other-model'] });
     const existing = await adapter.createThread('/tmp');

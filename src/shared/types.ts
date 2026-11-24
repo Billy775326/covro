@@ -40,6 +40,10 @@ export interface PermissionCapabilities {
 }
 /** Values reported by Codex; missing values are never replaced by guessed defaults. */
 export interface RuntimeSettings {
+  /** Native immutable provider of this session, or the effective new-session default. */
+  modelProvider?: string;
+  /** Absent on older servers; an empty catalog never falls back to another provider. */
+  modelCatalog?: { provider: string; models: ModelInfo[]; unavailable?: boolean };
   /** Only present when reported by the running Codex instance. */
   collaborationMode?: 'plan' | 'default';
   /** Verified RPC plus thread feature availability; absent means unverified. */
@@ -77,10 +81,19 @@ export interface CloneProjectInput extends CreateProjectInput {
   repository: string;
 }
 export interface ProjectClone {
+  createdAt?: number;
+  finishedAt?: number;
   id: string;
   path: string;
   name?: string;
-  status: 'cloning' | 'cancelling' | 'cancelled' | 'failed' | 'registration-failed' | 'completed';
+  status:
+    | 'cloning'
+    | 'cancelling'
+    | 'cancelled'
+    | 'failed'
+    | 'registration-failed'
+    | 'completed'
+    | 'interrupted';
   progress: string;
   /** Stable presentation codes; legacy progress/error text remains available for diagnostics. */
   progressStage?:
@@ -94,6 +107,7 @@ export interface ProjectClone {
     | 'completed'
     | 'registration_failed'
     | 'timed_out'
+    | 'interrupted'
     | 'cancelled'
     | 'failed';
   errorCode?:
@@ -107,6 +121,7 @@ export interface ProjectClone {
     | 'CLONE_FAILED'
     | 'CLONE_REGISTRATION_FAILED'
     | 'CLONE_TIMED_OUT'
+    | 'CLONE_INTERRUPTED'
     | 'CLONE_CANCELLED';
   percent?: number;
   error?: string;
@@ -139,6 +154,28 @@ export interface AutoReviewView {
   startedAtMs: number;
   completedAtMs?: number;
 }
+/** Stored answer metadata; Chat-specific presentation actions are not executed by Covro. */
+export type AnswerDisplayView =
+  | {
+      version: 1;
+      mode: 'show';
+      annotation?: { kind: 'wellbeingHelpline'; subject: 'answer' | 'prompt' };
+      trustedContacts: 'check' | 'skip';
+    }
+  | { version: 1; mode: 'hide'; replacement: { kind: 'wellbeingPromptHelpline' } }
+  | {
+      version: 1;
+      mode: 'block';
+      reason:
+        { kind: 'protection'; protectionType: string } | { kind: 'cyber'; trustedAccess?: boolean };
+    }
+  | {
+      action: string;
+      blockType: string | null;
+      cyberTrustedAccess: boolean | null;
+      checkTrustedContacts: boolean | null;
+    };
+
 export interface ItemView {
   id: string;
   type: string;
@@ -157,6 +194,11 @@ export interface ItemView {
   error?: string;
   autoReview?: AutoReviewView;
   delivery?: 'async';
+  /** Answer-scoped upstream metadata. Display actions are not executable Web instructions. */
+  moderation?: {
+    moderated: boolean;
+    display: AnswerDisplayView | null;
+  } | null;
   questions?: AsyncQuestion[];
   questionReplies?: AsyncQuestionReply[];
 }
@@ -378,6 +420,8 @@ export interface OperationInput {
 }
 /** Saved together, independently of any thread's pending runtime settings. */
 export interface ModelDefaults {
+  /** Provider that supplied this selection; never changes the default provider. */
+  modelProvider?: string;
   model: string;
   reasoningEffort: string | null;
 }
@@ -385,7 +429,7 @@ export interface SaveModelDefaultsInput extends OperationInput {
   settings: ModelDefaults;
 }
 export interface ModelDefaultsResult {
-  status: 'ok' | 'okOverridden';
+  status: 'ok' | 'okOverridden' | 'threadOnly';
 }
 export interface ArchiveThreadInput extends OperationInput {
   archived: boolean;
@@ -523,6 +567,7 @@ export interface SubscribeMessage {
   type: 'subscribe';
   threadId: string;
   incremental?: boolean;
+  subscriptionId?: number;
   after?: Cursor;
 }
 /** Live-only completion metadata; never replayed from conversation history. */
@@ -545,12 +590,14 @@ export interface AttentionRequest {
   kind: 'answer' | 'approval';
   target: AttentionTarget;
 }
-export type ServerMessage =
+export type ServerMessage = { subscriptionId?: number } & (
   | { type: 'snapshot'; cursor: Cursor; threadId: string; data: ThreadView }
   | { type: 'resync'; cursor: Cursor; threadId: string }
+  | { type: 'subscribed'; cursor: Cursor; threadId: string; threadSeq: number }
   | {
       type: 'event';
       cursor: Cursor;
+      previousThreadSeq?: number;
       threadId?: string;
       kind:
         | 'thread'
@@ -571,7 +618,8 @@ export type ServerMessage =
         | TurnCompletion
         | AttentionRequest;
     }
-  | { type: 'error'; error: ApiError };
+  | { type: 'error'; threadId?: string; status?: number; error: ApiError }
+);
 
 export interface TextFile {
   path: string;

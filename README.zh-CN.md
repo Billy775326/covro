@@ -29,8 +29,8 @@
 
 ## ✨ 你可以做什么
 
-- 📱 **随时随地跟进任务。** 用电脑或手机发送截图、查看改动、[账户额度](docs/account-usage.md)与[会话上下文用量](docs/runtime-settings.md#会话上下文与-token266)、处理审批和回答问题。关闭页面，任务仍会继续；执行中也能调整会话配置，并可在设置中管理[新会话默认值](docs/global-defaults.md)。
-- 🗂️ **集中管理项目与会话。** 无需项目即可开始任务，在一个工作台查看并行进展，接续或 Fork Codex CLI 会话，并用 [@](docs/file-references.md) 引用服务器工作区文件、用 [$](docs/skills.md) 引用技能。托管会话中的代理也能通过 Covro 在已注册项目中创建新任务；在设置中可[编辑全局 AGENTS.md 指令](docs/global-instructions.md)。
+- 📱 **随时随地跟进任务。** 用电脑或手机发送截图、查看改动、[账户额度](docs/account-usage.md)与[会话上下文用量](docs/runtime-settings.md#会话上下文与-token266)、处理审批和回答问题。关闭页面后任务仍会继续，手机端把工具收进**更多操作**，为对话留出更多空间；可在设置中管理[新会话默认值](docs/global-defaults.md)。
+- 🗂️ **集中管理项目与会话。** 无需项目即可开始任务，在一个工作台查看并行进展，接续或 Fork Codex CLI 会话，并用 [@](docs/file-references.md) 引用服务器工作区文件、用 [$](docs/skills.md) 引用技能。托管会话中的代理可在已注册项目中发起新任务；仓库可在后台克隆，对话照常继续；在设置中可[编辑全局 AGENTS.md 指令](docs/global-instructions.md)。
 - 📖 **一边看产出，一边讨论。** 电脑上将文档、风格统一的图表和代码变更与会话并排阅读，手机上使用全屏阅读器；macOS、Linux 和 Windows x64 主机还可按需启用[开发预览代理](docs/dev-preview.zh-CN.md)，在隔离标签页中打开会话的开发服务。上下文压缩期间仍可查看已提交消息，新回复实时到达时，已加载的历史正文保持完整。
 - 🔔 **及时收到待办提醒。** 在支持通知的桌面或 Android 浏览器中，接收工作结束、需要回答或审批的提醒。需保持页面在线；页面冻结或关闭期间不推送通知。
 
@@ -49,7 +49,7 @@
 
 <!-- codex-compatibility:start -->
 
-推荐 Codex CLI：**0.167.0**。已验证版本：`0.167.0`。
+推荐 Codex CLI：**0.171.0**。已验证版本：`0.171.0`。
 
 <!-- codex-compatibility:end -->
 
@@ -103,7 +103,7 @@ Covro 通过 `codex app-server` 连接已有 CLI，沿用你的 Codex 登录与�
 
 Covro 面向单用户。[Shell 面板](docs/shell.md)沿用 Codex 配置的沙箱执行非交互命令。交互终端、文件编辑器、Git 图形界面与多人团队管理不在当前范围内。
 
-DB Schema **10** 独立于应用版本，旧应用不能打开更新的数据库。备份只覆盖 Covro 数据库和服务配置，不包含项目文件、Codex 历史或凭据；恢复需停服。详见[备份](docs/backups.md)与[数据库兼容规则](docs/database.md)。
+DB Schema **11** 独立于应用版本，旧应用不能打开更新的数据库。备份只覆盖 Covro 数据库和服务配置，不包含项目文件、Codex 历史或凭据；恢复需停服。详见[备份](docs/backups.md)与[数据库兼容规则](docs/database.md)。
 
 ## 开发与参与
 
@@ -117,7 +117,7 @@ DB Schema **10** 独立于应用版本，旧应用不能打开更新的数据库
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 日常使用   | [使用指南](docs/usage.zh-CN.md) · [命令](docs/slash-commands.md) · [技能](docs/skills.md) · [文件引用](docs/file-references.md) · [提问与回答](docs/async-questions.md) · [Shell](docs/shell.md) · [容量重试](docs/capacity-retry.md) |
 | 项目与会话 | [导入与克隆](docs/project-clone.md) · [工作目录](docs/workspaces.md) · [历史加载](docs/session-history.md) · [提交恢复](docs/submission-recovery.md#简体中文) · [托管 MCP 工具](docs/managed-mcp.md)                                  |
-| 安装与访问 | [安装与更新](docs/distribution.md) · [部署](docs/deployment.md) · [日志与排障](docs/logging.md) · [界面语言](docs/i18n.md)                                                                                                            |
+| 安装与访问 | [安装与更新](docs/distribution.md) · [部署](docs/deployment.md) · [服务重启](docs/service-restart.md) · [日志与排障](docs/logging.md) · [界面语言](docs/i18n.md)                                                                      |
 | 数据与兼容 | [备份](docs/backups.md) · [数据库](docs/database.md) · [Codex 兼容性](docs/compatibility.md)                                                                                                                                          |
 | 开发与发布 | [贡献](docs/contributing.md) · [架构](docs/architecture.md) · [验证](docs/verification.md) · [发版](docs/releases.md) · [品牌素材](docs/brand.md)                                                                                     |
 

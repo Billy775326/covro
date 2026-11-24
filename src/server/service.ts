@@ -88,6 +88,7 @@ import { EventHub } from './events.js';
 import { TurnUsageStore } from './db/turn-usage.js';
 import { Projection, isActive, isTerminal } from './projection.js';
 import { ProjectRegistry } from './projects.js';
+import { BackgroundTasks } from './background-tasks.js';
 import { ProjectClones } from './project-clones.js';
 import { renderThreadExport } from './thread-export.js';
 import { readLocalImage } from './images.js';
@@ -96,6 +97,7 @@ import { readLocalMarkdown } from './markdown.js';
 import { readLocalText } from './text-files.js';
 import { readLocalJson } from './json-files.js';
 import { sessionCreationResult } from './session-creation.js';
+import type { RestartBlocker, RestartRequest } from '../shared/service-restart.js';
 import { createSessionSchema } from '../shared/validation.js';
 
 export interface GatewayOptions {
@@ -128,7 +130,8 @@ export class GatewayService {
   private readonly fileTemporaryRoots = temporaryFileRoots();
   private accepting = true;
   private maintenance = false;
-  private maintenanceReason: 'update' | 'backup' = 'update';
+  private maintenanceReason: 'update' | 'backup' | 'restart' = 'update';
+  private httpMutations = 0;
   private currentEpoch: string;
   private confirmedCompatibility: string | undefined;
   private readonly archiveChanges = new Set<string>();
@@ -178,6 +181,7 @@ export class GatewayService {
       },
       (path) => this.projects.list().some((project) => project.canonicalRoot === path),
       this.logger.child({ component: 'clones' }),
+      new BackgroundTasks(this.store.database, 'git-clone'),
     );
     this.codex = options.codex;
     this.shell = new ShellService(this.codex);
@@ -310,23 +314,37 @@ export class GatewayService {
   isInMaintenance() {
     return this.maintenance;
   }
-  setMaintenance(value: boolean, reason: 'update' | 'backup' = 'update') {
+  setMaintenance(value: boolean, reason: 'update' | 'backup' | 'restart' = 'update') {
+    if (!value && this.maintenance && this.maintenanceReason !== reason) return;
     this.maintenance = value;
     this.maintenanceReason = reason;
   }
   maintenanceError() {
+    if (this.maintenanceReason === 'restart')
+      return new AppError('RESTART_MAINTENANCE', 'Covro is restarting', 503);
     return this.maintenanceReason === 'backup'
       ? new AppError('BACKUP_MAINTENANCE', '正在备份，请完成后重试。', 503)
       : new AppError('UPDATE_MAINTENANCE', '正在升级，请等待服务重新连接', 503);
   }
-  prepareUpdate(
-    reason: 'update' | 'backup' = 'update',
-    closeAdmission = true,
-  ): { ready: boolean; reason?: string } {
-    if (this.capacityRetries.active())
-      return { ready: false, reason: '等待模型容量重试结束或取消' };
-    if (this.projectClones.hasActive) return { ready: false, reason: '等待项目克隆完成或取消' };
-    if (this.shell.active()) return { ready: false, reason: '等待 Shell 命令结束' };
+  async trackHttpMutation(work: () => Promise<void>) {
+    if (this.maintenance && this.maintenanceReason === 'restart') throw this.maintenanceError();
+    this.httpMutations++;
+    try {
+      await work();
+    } finally {
+      this.httpMutations--;
+    }
+  }
+  private prepareMaintenance(kind: 'update' | 'backup' | 'restart', closeAdmission: boolean) {
+    const blockers = new Set<RestartBlocker>();
+    let reason: string | undefined;
+    const block = (activity: RestartBlocker, detail: string) => {
+      blockers.add(activity);
+      reason ??= detail;
+    };
+    if (this.capacityRetries.active()) block('retry', '等待模型容量重试结束或取消');
+    if (this.projectClones.hasActive) block('clone', '等待项目克隆完成或取消');
+    if (this.shell.active()) block('shell', '等待 Shell 命令结束');
     if (
       this.instructionWrites.size ||
       this.defaultWrites.size ||
@@ -334,19 +352,72 @@ export class GatewayService {
       this.resumes.size ||
       this.pendingThreadCreations.size
     )
-      return { ready: false, reason: '等待正在提交或恢复的操作完成' };
-    if (this.store.activeMarkers().length || this.store.unresolvedOperations().length)
-      return { ready: false, reason: '等待任务结束，并核对结果尚未确认的操作' };
+      block('operation', '等待正在提交或恢复的操作完成');
+
+    const markers = this.store.activeMarkers();
+    const unconfirmed = '等待任务结束，并核对结果尚未确认的操作';
+    if (markers.length) reason ??= unconfirmed;
+    if (this.store.unresolvedOperations().length) block('operation', unconfirmed);
+
+    const interactive = '等待执行中的任务、审批或输入结束';
+    const activeThreads = new Set<string>();
+    for (const thread of this.projection.values()) {
+      if (!thread.managed || !isActive(thread.status)) continue;
+      activeThreads.add(thread.id);
+      block(
+        thread.status === 'waitingApproval'
+          ? 'approval'
+          : thread.status === 'waitingInput'
+            ? 'input'
+            : 'running',
+        interactive,
+      );
+    }
+    for (const action of this.projection.actions.values()) {
+      if (action.status !== 'pending' && action.status !== 'responding') continue;
+      const input = action.kind === 'questions' || action.kind === 'elicitation';
+      block(input ? 'input' : 'approval', interactive);
+      if (action.threadId) activeThreads.add(action.threadId);
+    }
+    // A durable marker with no active projection needs reconciliation before shutdown.
+    if (markers.some((entry) => !activeThreads.has(entry.threadId)))
+      block('operation', unconfirmed);
+
+    const restarting = kind === 'restart';
     if (
-      this.projection.values().some((thread) => thread.managed && isActive(thread.status)) ||
-      [...this.projection.actions.values()].some((action) =>
-        ['pending', 'responding'].includes(action.status),
-      )
+      (this.maintenance && (restarting || this.maintenanceReason !== kind)) ||
+      (restarting && !this.accepting)
     )
-      return { ready: false, reason: '等待执行中的任务、审批或输入结束' };
-    // Synchronous gate and check share one event-loop boundary with perform().
-    if (closeAdmission) this.setMaintenance(true, reason);
-    return { ready: true };
+      blockers.add('maintenance');
+    if (restarting && this.httpMutations) blockers.add('operation');
+    // The final idle check and gate share one event-loop boundary with write admission.
+    if (closeAdmission && !blockers.size) this.setMaintenance(true, kind);
+    return { blockers, reason: blockers.has('maintenance') ? '等待当前维护操作结束' : reason };
+  }
+  restartBlockers(closeAdmission = false): RestartBlocker[] {
+    return [...this.prepareMaintenance('restart', closeAdmission).blockers];
+  }
+  async nativeRestartBlockers(): Promise<RestartBlocker[]> {
+    const blockers: RestartBlocker[] = [];
+    for (const status of (await this.codex.loadedThreadActivity?.()) ?? []) {
+      if (status === 'running') blockers.push('running');
+      if (status === 'waitingApproval') blockers.push('approval');
+      if (status === 'waitingInput') blockers.push('input');
+    }
+    return blockers;
+  }
+  requestRestart(input: RestartRequest, start: () => Promise<{ restartId: string }>) {
+    return this.perform('service.restart', 'system', input, async () => {
+      this.store.dispatch(input.clientOperationId);
+      return { result: await start() };
+    });
+  }
+  prepareUpdate(
+    reason: 'update' | 'backup' = 'update',
+    closeAdmission = true,
+  ): { ready: boolean; reason?: string } {
+    const activity = this.prepareMaintenance(reason, closeAdmission);
+    return activity.blockers.size ? { ready: false, reason: activity.reason } : { ready: true };
   }
   addProject(input: CreateProjectInput) {
     this.workspaces.assertProjectDirectory(input.path);
@@ -363,6 +434,10 @@ export class GatewayService {
       this.workspaces.assertProjectDirectory(resolved);
       return resolved;
     });
+  }
+  registerProjectClone(id: string) {
+    if (this.maintenance || !this.accepting) throw this.maintenanceError();
+    return this.projectClones.retryRegistration(id);
   }
   renameProject(projectId: string, input: RenameProjectInput) {
     const project = this.projects.rename(projectId, input);
@@ -659,6 +734,8 @@ export class GatewayService {
     this.defaultWrites.add(pending);
     try {
       const result = await pending;
+      if (!result || !['ok', 'okOverridden'].includes(result.status))
+        throw new AppError('PROTOCOL_INCOMPATIBLE', 'Invalid configuration write result', 502);
       logger.info('global_defaults.saved', {
         outcome: result.status,
         durationMs: Math.round(performance.now() - started),
@@ -2051,14 +2128,24 @@ export class GatewayService {
     after: Cursor | undefined,
     listener: (message: ServerMessage) => void,
     incremental = false,
+    signalReplayBoundary = false,
   ): Promise<() => void> {
-    await this.getThread(threadId);
+    if (signalReplayBoundary) {
+      // Cold and expired cursors use the authorized HTTP snapshot path.
+      if (after?.serverEpoch !== this.events.serverEpoch || !this.projection.get(threadId)) {
+        listener({ type: 'resync', cursor: this.events.cursor(), threadId });
+        return () => {};
+      }
+      const thread = this.projection.get(threadId)!;
+      this.workspaces.assertOwnership(thread.projectId, thread.cwd, thread.id);
+    } else await this.getThread(threadId);
     return this.events.subscribe(
       threadId,
       () => this.threadView(this.projection.get(threadId)!),
       after,
       listener,
       incremental,
+      signalReplayBoundary,
     );
   }
 
@@ -2080,7 +2167,7 @@ export class GatewayService {
     work: () => Promise<{ result: unknown; turnId?: string; onAcknowledged?: () => void }>,
   ): Promise<Operation> {
     if (!this.accepting) throw new AppError('CODEX_UNAVAILABLE', '服务正在关闭', 503);
-    if (this.maintenance) throw this.maintenanceError();
+    if (this.maintenance && kind !== 'service.restart') throw this.maintenanceError();
     let accepted;
     try {
       accepted = this.store.accept(input.clientOperationId, kind, target, input);

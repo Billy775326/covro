@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { nullLogger, type Logger } from '../logging/logger.js';
 import { errorFields } from '../logging/fields.js';
 import { withLogContext } from '../logging/context.js';
+import type { RestartController } from '../shared/service-restart.js';
 import type { BackupController } from '../shared/backups.js';
 import { backupIdSchema } from '../shared/backups.js';
 import { backupRequestSchema } from '../backups/manager.js';
@@ -36,6 +37,7 @@ export interface HttpDependencies {
   authenticate?: Authenticator;
   updates?: UpdateController;
   backups?: BackupController;
+  restart?: RestartController;
   preview?: PreviewProxy;
 }
 export function createApp({
@@ -45,6 +47,7 @@ export function createApp({
   authenticate = createAuthenticator(config),
   updates,
   backups,
+  restart,
   preview,
   logger = nullLogger,
 }: HttpDependencies) {
@@ -133,14 +136,17 @@ export function createApp({
   });
   app.use('/api/*', async (c, next) => {
     c.header('Cache-Control', 'no-store');
+    if (['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) return next();
+    if (c.req.path === '/api/service-restart' || c.req.path === '/api/service-restart/cancel')
+      return next();
     if (
       service.isInMaintenance() &&
-      !['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) &&
       !c.req.path.startsWith('/api/updates') &&
       !c.req.path.startsWith('/api/backups')
     )
       throw service.maintenanceError();
-    await next();
+    if (restart) await service.trackHttpMutation(next);
+    else await next();
   });
   if (preview) {
     app.get('/api/preview/settings', (c) => c.json(preview.configuration()));
@@ -219,6 +225,24 @@ export function createApp({
       c.set('operationId', value.clientOperationId);
     return schema.parse(value);
   };
+  app.get('/api/service-restart', (c) =>
+    c.json(restart?.status() ?? { supported: false, blockers: [] }),
+  );
+  app.post('/api/service-restart', async (c) => {
+    if (!restart?.status().supported)
+      throw new AppError('RESTART_UNAVAILABLE', 'Restart requires the Covro CLI service', 409);
+    const input = await parse(c, schemas.operationSchema.extend({ afterId: z.uuid().nullable() }));
+    const operation = await service.requestRestart(input, () => restart.start(input));
+    return c.json(operation, 202);
+  });
+  app.post('/api/service-restart/cancel', async (c) => {
+    if (!restart) throw new AppError('RESTART_UNAVAILABLE', 'Restart is unavailable', 409);
+    const { id } = z
+      .object({ id: z.uuid() })
+      .strict()
+      .parse(await c.req.json());
+    return c.json(await restart.cancel(id));
+  });
   const status = (op: Operation) =>
     op.status === 'dispatching' || op.status === 'accepted' ? (202 as const) : (200 as const);
   const configuration = new ConfigStore(config);
@@ -356,6 +380,7 @@ export function createApp({
     const op = await service.createThread(null, await parse(c, schemas.createThreadSchema));
     return c.json(op, status(op));
   });
+  app.get('/api/project-clones', (c) => c.json({ data: service.projectClones.list() }));
   app.post('/api/project-clones', async (c) =>
     c.json(
       service.cloneProject(await parse(c, schemas.cloneProjectSchema), (path) =>
@@ -373,7 +398,7 @@ export function createApp({
   });
   app.post('/api/project-clones/:cloneId/register', async (c) => {
     await parse(c, schemas.removeProjectSchema);
-    return c.json(service.projectClones.retryRegistration(id(c.req.param('cloneId'))));
+    return c.json(service.registerProjectClone(id(c.req.param('cloneId'))));
   });
   app.post('/api/projects/reorder', async (c) =>
     c.json(service.reorderProjects(await parse(c, schemas.reorderProjectsSchema))),

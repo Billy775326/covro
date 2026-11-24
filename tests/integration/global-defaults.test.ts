@@ -70,6 +70,7 @@ it('does not leave an unknown operation after a committed write loses its acknow
   expect((await h.service.readGlobalDefaults()).version).toBe('saved');
   for (const reason of ['backup', 'update'] as const)
     expect(h.service.prepareUpdate(reason, false)).toEqual({ ready: true });
+  expect(h.service.restartBlockers()).toEqual([]);
   expect(h.write).toHaveBeenCalledTimes(1);
   expect(JSON.stringify(h.records)).not.toContain('private-model-setting');
   expect(JSON.stringify(h.records)).not.toContain('private configuration details');
@@ -98,6 +99,7 @@ it('holds maintenance only while the configuration write is pending and lets shu
   h.write.mockImplementation(() => gate.promise);
   const saving = h.service.saveGlobalDefaults(h.input);
   expect(h.service.prepareUpdate('backup', false).ready).toBe(false);
+  expect(h.service.restartBlockers()).toContain('operation');
   expect(h.store.unresolvedOperations()).toEqual([]);
   const stopping = h.service.shutdown();
   expect(h.codex.stops).toBe(0);
@@ -135,7 +137,7 @@ describe('configuration write admission', () => {
     await expect(h.service.saveGlobalDefaults(h.input)).rejects.toMatchObject({
       code: 'BACKUP_MAINTENANCE',
     });
-    h.service.setMaintenance(false);
+    h.service.setMaintenance(false, 'backup');
     h.codex.ready = false;
     await expect(h.service.saveGlobalDefaults(h.input)).rejects.toMatchObject({
       code: 'CODEX_UNAVAILABLE',
@@ -202,4 +204,18 @@ it('returns native configuration status through the guarded HTTP route without o
   expect(
     h.db.database.$client.prepare('SELECT count(*) AS count FROM operations').get(),
   ).toMatchObject({ count: 0 });
+});
+
+it('rejects an invalid native write result without reporting success or leaving maintenance blocked', async () => {
+  const h = fixture();
+  Object.assign(h.codex, {
+    saveGlobalDefaults: async () => ({ status: 'private-unexpected-payload' }),
+  });
+  await expect(h.service.saveGlobalDefaults(h.input)).rejects.toMatchObject({
+    code: 'PROTOCOL_INCOMPATIBLE',
+  });
+  expect(h.records.some((row) => row.event === 'global_defaults.saved')).toBe(false);
+  expect(JSON.stringify(h.records)).not.toContain('private-unexpected-payload');
+  expect(h.store.unresolvedOperations()).toEqual([]);
+  expect(h.service.prepareUpdate('backup', false)).toEqual({ ready: true });
 });

@@ -22,7 +22,7 @@ import {
 import { CodexError, isRecord, type RpcNotification, type RpcTransport } from './transport.js';
 
 // These experimental fields are omitted by the stable protocol generator.
-// Their shapes match the verified CLI 0.164.0 app-server protocol.
+// Their shapes match the verified CLI 0.171.0 app-server protocol.
 type TitleSource = ThreadStartResponse & {
   activePermissionProfile?: { id: string } | null;
 };
@@ -297,6 +297,7 @@ export class ThreadTitles {
       'skills.include_instructions': false,
       'tools.experimental_request_user_input.enabled': false,
       'tools.update_plan.enabled': false,
+      'agents.enabled': false,
       mcp_servers: Object.fromEntries(
         Object.entries(isRecord(config.mcp_servers) ? config.mcp_servers : {}).map(
           ([name, server]) => [
@@ -318,7 +319,6 @@ export class ThreadTitles {
       'apps',
       'plugins',
       'hooks',
-      'multi_agent',
       'goals',
       'memories',
       'browser_use',

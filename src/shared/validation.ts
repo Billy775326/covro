@@ -51,6 +51,7 @@ export const updateLiveSettingsSchema = operationSchema.extend({
 export const saveModelDefaultsSchema = operationSchema.extend({
   settings: z
     .object({
+      modelProvider: z.string().min(1).max(256).optional(),
       model: z.string().min(1).max(200),
       reasoningEffort: z.string().min(1).max(40).nullable(),
     })
@@ -229,6 +230,7 @@ export const subscribeSchema = z
     type: z.literal('subscribe'),
     threadId: idSchema,
     incremental: z.boolean().optional(),
+    subscriptionId: z.number().int().positive().optional(),
     after: z
       .object({ serverEpoch: idSchema, seq: z.number().int().nonnegative() })
       .strict()
@@ -237,7 +239,7 @@ export const subscribeSchema = z
   .strict();
 export const socketMessageSchema = z.discriminatedUnion('type', [
   subscribeSchema,
-  z.object({ type: z.literal('unsubscribe') }).strict(),
+  z.object({ type: z.literal('unsubscribe'), threadId: idSchema.optional() }).strict(),
 ]);
 
 export const archiveThreadSchema = operationSchema.extend({ archived: z.boolean() });

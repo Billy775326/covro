@@ -221,7 +221,7 @@ function SettingsDialog({
                 onClose={finishNavigation}
               />
             ) : detail === 'gateway' ? (
-              <GatewaySettings onClose={finishNavigation} />
+              <GatewaySettings onClose={finishNavigation} connected={!props.offline} />
             ) : detail === 'backups' ? (
               <BackupSettings onClose={finishNavigation} />
             ) : category === 'general' ? (

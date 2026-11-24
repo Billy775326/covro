@@ -6,6 +6,7 @@ import type { GetAccountResponse } from '../../src/codex/generated/v2/GetAccount
 import type { SimulatorOptions } from '../fixtures/app-server';
 
 const chatgpt: GetAccountResponse = {
+  userId: null,
   account: {
     type: 'chatgpt',
     email: 'private@example.test',
@@ -51,6 +52,42 @@ async function fixture(options: SimulatorOptions) {
 }
 
 describe('account quota snapshots', () => {
+  it('uses canonical user identity from the same account snapshot without exposing it or accepting a stale quota result', async () => {
+    const first = { ...chatgpt, userId: 'private-user-one' };
+    const second = { ...chatgpt, userId: 'private-user-two' };
+    const { source, reader: usage } = reader(first);
+    await usage.refresh();
+    const previousScope = usage.snapshot().scope;
+    let finish!: (value: unknown) => void;
+    source.limits.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const stale = usage.refresh();
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+    source.account.mockResolvedValue(second);
+    source.limits.mockRejectedValueOnce(new Error('Unavailable for the new user'));
+    expect(await usage.refresh()).toMatchObject({ status: 'error', groups: [], updatedAt: null });
+    expect(usage.snapshot().scope).not.toBe(previousScope);
+    finish(limits);
+    await stale;
+    expect(usage.snapshot()).toMatchObject({ groups: [], updatedAt: null });
+    expect(JSON.stringify(usage.snapshot())).not.toContain('private-user');
+  });
+  it('normalizes an absent canonical user ID and null to the same legacy identity', async () => {
+    const { source, reader: usage } = reader();
+    const legacy = JSON.parse(JSON.stringify(chatgpt));
+    delete legacy.userId;
+    source.account.mockResolvedValueOnce(legacy);
+    await usage.refresh();
+    const scope = usage.snapshot().scope;
+    const response = { ...chatgpt, userId: null };
+    source.account.mockResolvedValue(response);
+    await usage.refresh();
+    expect(usage.snapshot().scope).toBe(scope);
+  });
   it('keeps distinct buckets, avoids the legacy duplicate, strips private fields and preserves nulls', () => {
     const values = accountUsageValues({
       ...limits,
@@ -102,7 +139,7 @@ describe('account quota snapshots', () => {
       'unsupported',
     ],
   ] as const)('handles account state %j', async (account, status) => {
-    const { source, reader: usage } = reader(account);
+    const { source, reader: usage } = reader({ ...account, userId: null });
     expect(await usage.refresh()).toMatchObject({ status, groups: [], updatedAt: null });
     expect(source.limits).not.toHaveBeenCalled();
   });
@@ -110,7 +147,11 @@ describe('account quota snapshots', () => {
     const { source, reader: usage } = reader();
     await usage.refresh();
     const previousScope = usage.snapshot().scope;
-    source.account.mockResolvedValue({ account: { type: 'gcp' }, requiresOpenaiAuth: false });
+    source.account.mockResolvedValue({
+      account: { type: 'gcp' },
+      userId: null,
+      requiresOpenaiAuth: false,
+    });
     expect(await usage.refresh()).toMatchObject({
       status: 'unsupported',
       groups: [],
@@ -220,13 +261,28 @@ describe('quota RPC in the native adapter', () => {
     const adapter = await fixture({
       rateLimitResponses: [limits],
       rateLimitNotification: 'account',
-      accountAfterNotification: { account: null, requiresOpenaiAuth: true },
+      accountAfterNotification: { account: null, userId: null, requiresOpenaiAuth: true },
     });
     await expect.poll(() => adapter.diagnostics().accountUsage?.status).toBe('signedOut');
     expect(adapter.diagnostics()).toMatchObject({
       authenticated: false,
       accountUsage: { groups: [], updatedAt: null },
     });
+  });
+  it('refreshes workspace routing notifications without treating the same owner as a sign-out', async () => {
+    const adapter = await fixture({
+      rateLimitResponses: [
+        limits,
+        { rateLimits: { limitId: 'codex', primary: { usedPercent: 25 } } },
+      ],
+      rateLimitNotification: 'routing',
+    });
+    await expect
+      .poll(() => adapter.diagnostics().accountUsage?.groups[0]?.primary?.usedPercent)
+      .toBe(25);
+    expect(adapter.diagnostics().authenticated).toBe(true);
+    expect(adapter.ready).toBe(true);
+    expect(JSON.stringify(adapter.diagnostics())).not.toContain('private');
   });
   it('keeps the app-server ready when quotas are unsupported or fail', async () => {
     for (const options of [

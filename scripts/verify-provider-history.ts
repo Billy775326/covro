@@ -15,23 +15,43 @@ import type { ThreadStartResponse } from '../src/codex/generated/v2/ThreadStartR
 import type { TurnStartResponse } from '../src/codex/generated/v2/TurnStartResponse.js';
 
 const args = process.argv.slice(2);
+const versionIndex = args.indexOf('--expected-version');
+const expectedVersion = versionIndex >= 0 ? args[versionIndex + 1]! : '0.169.0';
+assert.match(expectedVersion, /^\d+\.\d+\.\d+$/);
 const configIndex = args.indexOf('--config');
 const outputIndex = args.indexOf('--output-dir');
-assert(configIndex >= 0, 'Pass --config selecting an existing 0.167.0 binary');
+assert(configIndex >= 0, 'Pass --config selecting an existing target binary');
 const { codex } = JSON.parse(await readFile(resolve(args[configIndex + 1]!), 'utf8')) as {
   codex: { binary: string };
 };
 const root = await mkdtemp(join(tmpdir(), 'covro-provider-history-'));
 let responseId = 0;
+const routes: string[] = [];
+const bodies: { model?: string }[] = [];
 const server = createServer(async (request, response) => {
-  for await (const chunk of request) void chunk;
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) chunks.push(Buffer.from(chunk));
+  const body = JSON.parse(Buffer.concat(chunks).toString());
+  const title = JSON.stringify(body).includes('Generate a concise');
+  // Optional title generation can overlap another session's native model request.
+  if (!title) {
+    routes.push(request.url ?? '');
+    bodies.push(body);
+  }
   const id = `provider-${++responseId}`;
   const item = {
     type: 'message',
     id,
     role: 'assistant',
     phase: 'final_answer',
-    content: [{ type: 'output_text', text: 'Saved provider history' }],
+    content: [
+      {
+        type: 'output_text',
+        text: title
+          ? JSON.stringify({ title: 'Provider history check' })
+          : 'Saved provider history',
+      },
+    ],
   };
   response.writeHead(200, { 'content-type': 'text/event-stream' });
   for (const event of [
@@ -62,7 +82,7 @@ async function configure(home: string, provider: string) {
       ['old', 'current']
         .map(
           (id) =>
-            `[model_providers.${id}]\nname = "Isolated ${id} provider"\nbase_url = "http://127.0.0.1:${port}/v1"\nwire_api = "responses"\nrequires_openai_auth = false\n`,
+            `[model_providers.${id}]\nname = "Isolated ${id} provider"\nbase_url = "http://127.0.0.1:${port}/${id}/v1"\nwire_api = "responses"\nrequires_openai_auth = false\n`,
         )
         .join(''),
   );
@@ -127,7 +147,7 @@ try {
     const adapter = new CodexAdapter({ binary: codex.binary, home });
     adapters.push(adapter);
     await adapter.start();
-    assert.equal(adapter.diagnostics().codexVersion, '0.167.0');
+    assert.equal(adapter.diagnostics().codexVersion, expectedVersion);
     for (const expected of saved) {
       const listed = await adapter.listThreads(project, undefined, expected.archived);
       assert(listed.data.some((thread) => thread.id === expected.id));
@@ -145,16 +165,46 @@ try {
       );
       assert.equal((await adapter.readThreadMetadata(expected.id)).archived, expected.archived);
     }
-    await assert.rejects(adapter.resumeThread(saved[0]!.id, project), (error: unknown) => {
-      assert.equal(
-        (error as { details?: { modelProviderError?: { type?: string } } }).details
-          ?.modelProviderError?.type,
-        'modelProviderMismatch',
-      );
-      return true;
-    });
+    const events: import('../src/codex/types.js').CodexEvent[] = [];
+    adapter.onEvent((event) => events.push(event));
+    const resumed = await adapter.resumeThread(saved[0]!.id, project);
+    assert.equal(resumed.runtimeSettings?.modelCatalog?.provider, 'old');
+    assert(
+      resumed.runtimeSettings?.modelCatalog?.models.some((model) => model.id === 'gpt-6.1-sol'),
+    );
+    assert.deepEqual(
+      await adapter.saveModelDefaults({
+        model: 'gpt-6.1-sol',
+        reasoningEffort: 'low',
+        modelProvider: 'old',
+      }),
+      { status: 'threadOnly' },
+    );
+    async function finishTurn(id: string) {
+      const before = routes.length;
+      const turn = await adapter.startTurn(id, project, 'Continue with the saved provider', {
+        model: 'gpt-6.1-sol',
+        reasoningEffort: 'low',
+      });
+      const deadline = Date.now() + 20000;
+      while (
+        !events.some(
+          (event) =>
+            event.type === 'turn' && event.turn.id === turn.id && event.turn.status === 'completed',
+        )
+      ) {
+        assert(Date.now() < deadline, 'Provider continuation did not complete');
+        await new Promise((done) => setTimeout(done, 20));
+      }
+      return routes.slice(before);
+    }
+    assert((await finishTurn(resumed.id)).every((route) => route.startsWith('/old/')));
+    const fresh = await adapter.createThread(project);
+    assert.equal(fresh.runtimeSettings?.modelCatalog?.provider, 'current');
+    assert((await finishTurn(fresh.id)).every((route) => route.startsWith('/current/')));
+    assert(bodies.every((body) => body.model === 'gpt-6.1-sol'));
     checks.push(
-      `${historyMode}: provider switch retains active/archived discovery, exact cwd, archive state and readable text; mismatched resume rejected`,
+      `${historyMode}: switched default preserves old-provider history, archive/cwd boundaries, catalog, successful resume and actual old endpoint; new thread uses current endpoint; foreign selection never rewrites defaults`,
     );
     await adapter.stop();
     if (historyMode === 'paginated' && outputIndex >= 0) {
@@ -188,14 +238,38 @@ try {
           path: join(output, 'provider-active-history.png'),
           fullPage: true,
         });
+        await page.getByRole('button', { name: '模型设置', exact: true }).click();
+        await page.getByRole('combobox', { name: '推理强度', exact: true }).click();
+        await page.getByRole('option', { name: 'medium', exact: true }).click();
+        await expect(page.locator('.settings-defaults')).toHaveText('仅应用于当前会话');
+        await page.getByRole('combobox', { name: '模型', exact: true }).click();
+        await page.screenshot({
+          path: join(output, 'provider-models-desktop.png'),
+          fullPage: true,
+        });
+        await page.keyboard.press('Escape');
+        await page.keyboard.press('Escape');
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.getByRole('button', { name: '模型设置', exact: true }).click();
+        await expect(page.locator('.settings-defaults')).toHaveText('仅应用于当前会话');
+        assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+        await page.screenshot({ path: join(output, 'provider-models-mobile.png'), fullPage: true });
+        await page.keyboard.press('Escape');
+        await page.setViewportSize({ width: 1280, height: 1000 });
         await page.getByRole('button', { name: '已归档会话', exact: true }).click();
         await expect(page.locator(`[data-thread-id="${saved[1]!.id}"]`)).toBeVisible();
         await page.screenshot({
           path: join(output, 'provider-archived-history.png'),
           fullPage: true,
         });
+        await page.locator('details.diagnostics > summary').click();
+        await expect(page.locator('.diagnostics-panel')).toContainText(expectedVersion);
+        await page.screenshot({
+          path: join(output, 'runtime-version-desktop.png'),
+          fullPage: true,
+        });
         checks.push(
-          'production browser: old-provider active and archived rows visible; saved text remains readable',
+          'production browser: old-provider active/archived history readable, provider model options and thread-only defaults shown at desktop and 390px without horizontal overflow',
         );
       } finally {
         await browser.close();
@@ -204,7 +278,11 @@ try {
     }
   }
   console.log(
-    JSON.stringify({ version: '0.167.0', inference: false, localStub: true, checks }, null, 2),
+    JSON.stringify(
+      { version: expectedVersion, inference: false, localStub: true, checks },
+      null,
+      2,
+    ),
   );
 } finally {
   await Promise.all(adapters.map((adapter) => adapter.stop()));

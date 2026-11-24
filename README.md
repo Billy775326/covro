@@ -29,8 +29,8 @@
 
 ## ✨ What you can do
 
-- 📱 **Follow tasks from any device.** Send screenshots, review changes, handle approvals, answer questions, and check [account quotas](docs/account-usage.md) and [session context usage](docs/runtime-settings.md#会话上下文与-token266) on desktop or mobile. Tasks keep running when you close the page; adjust session settings while work continues and set [new-conversation defaults](docs/global-defaults.md) in Settings.
-- 🗂️ **Keep projects and conversations together.** Start without a project, track parallel tasks, resume or fork your Codex CLI conversations, and reference server workspace files with [@](docs/file-references.md) or skills with [$](docs/skills.md). Agents in managed sessions can start a new task in a registered project through Covro; [edit global AGENTS.md instructions](docs/global-instructions.md) in Settings.
+- 📱 **Follow tasks from any device.** Send screenshots, review changes, handle approvals, answer questions, and check [account quotas](docs/account-usage.md) and [session context usage](docs/runtime-settings.md#会话上下文与-token266) on desktop or mobile. Tasks keep running when you close the page, and on mobile the header gives the conversation more room by grouping tools under **More actions**; configure [new-conversation defaults](docs/global-defaults.md) in Settings.
+- 🗂️ **Keep projects and conversations together.** Start without a project, track parallel tasks, resume or fork your Codex CLI conversations, and reference server workspace files with [@](docs/file-references.md) or skills with [$](docs/skills.md). Agents in managed sessions can start tasks in registered projects; repositories can clone in the background while you chat; [edit global AGENTS.md instructions](docs/global-instructions.md) in Settings.
 - 📖 **Read results while you chat.** Preview documents, diagrams styled to match the workspace, and code changes beside the conversation on desktop, or full-screen on mobile; on macOS, Linux and Windows x64 hosts, opt into the [development preview proxy](docs/dev-preview.md) to open session services in isolated tabs. Submitted messages stay visible during context compaction, and loaded history stays complete as new responses stream in.
 - 🔔 **Know when your attention is needed.** Enable browser notifications for completed work, questions, and approvals in a supported desktop or Android browser. Keep the page online; notifications are not pushed while it is frozen or closed.
 
@@ -49,7 +49,7 @@ You need **Node.js 24.19 or later in the 24.x line** and an installed, signed-in
 
 <!-- codex-compatibility:start -->
 
-Recommended Codex CLI: **0.167.0**. Verified versions: `0.167.0`.
+Recommended Codex CLI: **0.171.0**. Verified versions: `0.171.0`.
 
 <!-- codex-compatibility:end -->
 
@@ -103,7 +103,7 @@ Covro connects to your existing CLI through `codex app-server`. Tasks, projects,
 
 Covro is for a single user. The [Shell panel](docs/shell.md) runs non-interactive commands using Codex’s configured sandbox. An interactive terminal, file editor, Git GUI, and multi-user team management are outside the current scope.
 
-DB Schema **10** is independent of the application version; older applications cannot open newer databases. Backups cover only Covro’s database and service configuration, excluding project files, Codex history, and credentials. Restore requires stopping the service. See [backups](docs/backups.md) and [database compatibility](docs/database.md).
+DB Schema **11** is independent of the application version; older applications cannot open newer databases. Backups cover only Covro’s database and service configuration, excluding project files, Codex history, and credentials. Restore requires stopping the service. See [backups](docs/backups.md) and [database compatibility](docs/database.md).
 
 ## Development and contribution
 
@@ -117,7 +117,7 @@ See the [contribution guide](docs/contributing.md) for development setup, checks
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Everyday use               | [Usage · 中文](docs/usage.zh-CN.md) · [Commands](docs/slash-commands.md) · [Skills](docs/skills.md) · [File references](docs/file-references.md) · [Questions](docs/async-questions.md) · [Shell](docs/shell.md) · [Capacity retries](docs/capacity-retry.md) |
 | Projects and conversations | [Import and clone](docs/project-clone.md) · [Workspaces](docs/workspaces.md) · [History loading](docs/session-history.md) · [Submission recovery](docs/submission-recovery.md) · [Managed MCP tools](docs/managed-mcp.md)                                     |
-| Setup and access           | [Install and update](docs/distribution.md) · [Deployment](docs/deployment.md) · [Logs and diagnostics](docs/logging.md) · [Interface languages](docs/i18n.md)                                                                                                 |
+| Setup and access           | [Install and update](docs/distribution.md) · [Deployment](docs/deployment.md) · [Service restart](docs/service-restart.md) · [Logs and diagnostics](docs/logging.md) · [Interface languages](docs/i18n.md)                                                    |
 | Data and compatibility     | [Backups](docs/backups.md) · [Database](docs/database.md) · [Codex compatibility](docs/compatibility.md)                                                                                                                                                      |
 | Development and releases   | [Contributing](docs/contributing.md) · [Architecture](docs/architecture.md) · [Verification](docs/verification.md) · [Releases](docs/releases.md) · [Brand assets](docs/brand.md)                                                                             |
 

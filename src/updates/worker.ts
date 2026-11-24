@@ -182,9 +182,9 @@ async function workerCore(directory: string, logger: Logger) {
       covroCommit?: string;
       covroDatabase?: unknown;
     }>(join(originalRoot, 'package.json'));
-    const Sqlite = createRequire(join(originalRoot, 'package.json'))(
-      'better-sqlite3',
-    ) as typeof Database;
+    const requireOriginal = createRequire(join(originalRoot, 'package.json'));
+    const sqliteModulePath = requireOriginal.resolve('better-sqlite3');
+    const Sqlite = requireOriginal(sqliteModulePath) as typeof Database;
     const migrations = readMigrations(join(originalRoot, 'dist/drizzle'));
     const backups = new BackupStore({
       directory: backupDirectory(context.location.home, context.dataDir),
@@ -200,6 +200,7 @@ async function workerCore(directory: string, logger: Logger) {
         },
       ),
       Sqlite,
+      sqliteModulePath,
       migrations,
     });
     if (process.argv[3] === '--repair') {
@@ -445,25 +446,22 @@ async function workerCore(directory: string, logger: Logger) {
           : undefined,
         restoreLaunch: () => restoreLaunch(context.location, launch),
         phase: update,
-        waitForIdle: async () => {
-          // Queue without blocking normal work; admission closes atomically only after all blockers clear.
-          for (;;) {
-            await checkRestartCodex();
-            const result = await control<{ ready: boolean; reason?: string }>(
-              context.location,
-              'prepare-update',
-            );
-            if (result.ready) {
-              await checkRestartCodex();
-              await verifyMigrations(context, candidateRoot);
-              const pinned = await readJson<typeof candidate>(join(candidateRoot, 'package.json'));
-              if (JSON.stringify(pinned) !== JSON.stringify(candidate))
-                throw new Error('固定候选包在安装后发生变化，拒绝切换');
-              return;
-            }
+        prepare: async () => {
+          await checkRestartCodex();
+          const result = await control<{ ready: boolean; reason?: string }>(
+            context.location,
+            'prepare-update',
+          );
+          if (!result.ready) {
             await update('waiting', result.reason ?? '等待所有任务结束');
-            await setTimeout(2_000);
+            return false;
           }
+          await checkRestartCodex();
+          await verifyMigrations(context, candidateRoot);
+          const pinned = await readJson<typeof candidate>(join(candidateRoot, 'package.json'));
+          if (JSON.stringify(pinned) !== JSON.stringify(candidate))
+            throw new Error('固定候选包在安装后发生变化，拒绝切换');
+          return true;
         },
         beforeStop: checkRestartCodex,
         stop: () => stopService(context),
@@ -474,24 +472,18 @@ async function workerCore(directory: string, logger: Logger) {
           if (!candidate) await verifyRestoredService(context, record!.from);
         },
         verify: async () => {
-          for (let attempt = 0; attempt < 240; attempt++) {
-            const current = await control<DaemonStatus>(context.location, 'status').catch(
-              () => undefined,
-            );
-            if (current) {
-              if (current.version !== record!.target || !current.maintenance)
-                throw new Error('新版服务身份或维护状态不匹配');
-              if (record!.runtime) assertRuntime(current.runtime, record!.runtime.target);
-              if (current.codexVersion && current.codexVersion !== record!.codex!.version)
-                throw new Error('重启后的 Codex 版本与升级校验记录不匹配');
-              if (current.codexReady) {
-                checkRunningCodex(current);
-                return;
-              }
-            }
-            await setTimeout(250);
-          }
-          throw new Error('新版服务或 Codex 连接未就绪，拒绝激活');
+          const current = await control<DaemonStatus>(context.location, 'status').catch(
+            () => undefined,
+          );
+          if (!current) return false;
+          if (current.version !== record!.target || !current.maintenance)
+            throw new Error('新版服务身份或维护状态不匹配');
+          if (record!.runtime) assertRuntime(current.runtime, record!.runtime.target);
+          if (current.codexVersion && current.codexVersion !== record!.codex!.version)
+            throw new Error('重启后的 Codex 版本与升级校验记录不匹配');
+          if (!current.codexReady) return false;
+          checkRunningCodex(current);
+          return true;
         },
         commit: async () => {
           // Gateway commits the durable result before reopening task admission.

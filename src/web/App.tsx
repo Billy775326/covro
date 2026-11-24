@@ -2,7 +2,7 @@ import { UNASSIGNED_SCOPE } from '../shared/workspace-scope';
 import { displayMessage, messageDetails } from './i18n/messages';
 import { t, useInterfaceLocale } from './i18n';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowLeft, Pencil } from 'lucide-react';
+import { ArrowLeft, CircleAlert, Pencil } from 'lucide-react';
 import type { Settings, ThreadSummary, ReviewTarget } from '../shared/types';
 import { useCommandPrompt } from './hooks/useCommandPrompt';
 import { ReviewTargetDialog } from './components/ReviewTargetDialog';
@@ -17,6 +17,7 @@ import { Sidebar } from './components/Sidebar';
 import { FilePreviewProvider } from './components/FilePreviewProvider';
 import { Conversation } from './components/Conversation';
 import { ThreadTitle } from './components/ThreadTitle';
+import { HeaderActions, compactHeaderQuery } from './components/HeaderActions';
 import { GithubRepositoryLink } from './components/GithubRepositoryLink';
 import { Composer } from './components/Composer';
 import { ActionCard } from './components/ActionCard';
@@ -32,6 +33,8 @@ import { downloadThreadExport } from './lib/thread-export';
 import { encodeQuestionReplies } from '../shared/async-questions';
 import { pendingAttention } from '../shared/thread-attention';
 import { CompatibilityNotice } from './components/CompatibilityNotice';
+import { BackgroundTasks } from './components/BackgroundTasks';
+import { useBackgroundTasks } from './hooks/useBackgroundTasks';
 import { ProjectDialog } from './components/ProjectDialog';
 import { UpdateSettings } from './components/UpdateSettings';
 import { useConversationHistory } from './hooks/useConversationHistory';
@@ -84,26 +87,33 @@ export function App() {
   const shell = useShell(shellOpen);
   const [shellCollapsed, setShellCollapsed] = useState(false);
   const updates = useUpdates();
+  const backgroundTasks = useBackgroundTasks(!workspace.authRequired);
   const [updatesOpen, setUpdatesOpen] = useState(false);
   const { isUnreadCompletion, markCompletedRead } = useThreadReadState();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [compactHeader, setCompactHeader] = useState(() => matchMedia(compactHeaderQuery).matches);
+  const moreActions = useRef<HTMLButtonElement>(null);
+  const diagnosticsTrigger = useRef<HTMLButtonElement>(null);
+  const mobileDiagnosticsReturn = useRef<HTMLButtonElement | null>(null);
   const [composerFocusRequest, setComposerFocusRequest] = useState(0);
   const [skillsRequest, setSkillsRequest] = useState(0);
   const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   useEffect(() => {
-    const desktop = window.matchMedia('(min-width: 761px)');
-    const closeMobileNavigation = () => {
-      if (desktop.matches) setSidebarOpen(false);
+    const query = window.matchMedia(compactHeaderQuery);
+    const update = () => {
+      setCompactHeader(query.matches);
+      if (!query.matches) setSidebarOpen(false);
     };
-    desktop.addEventListener('change', closeMobileNavigation);
-    return () => desktop.removeEventListener('change', closeMobileNavigation);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
   }, []);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const statusCheck = useRef(false);
   const [projectDialog, setProjectDialog] = useState<
-    { kind: 'add' } | { kind: 'manage'; id: string }
+    { kind: 'add'; cloneId?: string } | { kind: 'manage'; id: string }
   >();
   const [checkingCompatibility, setCheckingCompatibility] = useState(false);
   const [compatibilityDialogOpen, setCompatibilityDialogOpen] = useState(false);
@@ -121,8 +131,27 @@ export function App() {
     setProjectDialog({ kind: 'add' });
   };
   const { thread, system } = workspace;
-  const hasAsyncQuestions =
-    thread && pendingAttention(thread).some((request) => request.target.kind === 'question');
+  const attention = thread ? pendingAttention(thread) : [];
+  const hasAsyncQuestions = attention.some((request) => request.target.kind === 'question');
+  const diagnosticCount = workspace.operations.length;
+  const showMobileDiagnostics =
+    diagnosticCount > 0 ||
+    workspace.connection === 'disconnected' ||
+    workspace.connection === 'authenticationRequired' ||
+    (system && !system.ready) ||
+    thread?.status === 'unknown';
+  const openMobileDiagnostics = (from: HTMLButtonElement | null) => {
+    mobileDiagnosticsReturn.current = from;
+    setFocusedOperationId(undefined);
+    setDiagnosticsOpen(true);
+  };
+  const closeMobileDiagnostics = () => {
+    setDiagnosticsOpen(false);
+    const previous = mobileDiagnosticsReturn.current;
+    const fallback = diagnosticsTrigger.current ?? moreActions.current;
+    (previous?.isConnected ? previous : fallback)?.focus({ preventScroll: true });
+    mobileDiagnosticsReturn.current = null;
+  };
   const historyForbidden =
     workspace.authRequired ||
     Boolean(
@@ -564,9 +593,11 @@ export function App() {
             </Button>
             <div>
               <div className="breadcrumb">
-                {project?.name ?? t('common:unassigned')}
+                <span className="breadcrumb-project">
+                  {project?.name ?? t('common:unassigned')}
+                </span>
                 <Icon name="chevron" size={12} />
-                <span>
+                <span className="breadcrumb-scope">
                   {workspace.selectedId ? t('common:sessions') : t('workspace:new_session')}
                 </span>
               </div>
@@ -604,7 +635,47 @@ export function App() {
             />
           </div>
           <div className="topbar-status">
-            <div className="topbar-tools">
+            {compactHeader && showMobileDiagnostics && (
+              <Button
+                ref={diagnosticsTrigger}
+                variant="ghost"
+                size="icon"
+                className="topbar-diagnostics"
+                aria-label={
+                  diagnosticCount
+                    ? t('workspace:diagnostics_with_count', { v0: diagnosticCount })
+                    : t('common:diagnostics')
+                }
+                aria-controls="diagnostics-panel"
+                aria-expanded={diagnosticsOpen}
+                onClick={() => {
+                  if (diagnosticsOpen) closeMobileDiagnostics();
+                  else openMobileDiagnostics(diagnosticsTrigger.current);
+                }}
+              >
+                <CircleAlert size={18} aria-hidden="true" />
+                {diagnosticCount > 0 && (
+                  <span className="count-badge" aria-hidden="true">
+                    {diagnosticCount > 99 ? '99+' : diagnosticCount}
+                  </span>
+                )}
+              </Button>
+            )}
+            <HeaderActions
+              compact={compactHeader}
+              trigger={moreActions}
+              onOpen={() => {
+                setDiagnosticsOpen(false);
+                mobileDiagnosticsReturn.current = null;
+              }}
+            >
+              <BackgroundTasks
+                tasks={backgroundTasks}
+                onDetails={(cloneId) => {
+                  setSidebarOpen(false);
+                  setProjectDialog({ kind: 'add', cloneId });
+                }}
+              />
               <DevPreview threadId={workspace.selectedId} />
               <Button
                 type="button"
@@ -617,6 +688,7 @@ export function App() {
                 }
                 onClick={() => setSkillsRequest((value) => value + 1)}
               >
+                {compactHeader && <Icon name="skill" size={16} />}
                 {t('composer:skills_title')}
               </Button>
               <Button
@@ -641,13 +713,36 @@ export function App() {
                   </span>
                 )}
               </Button>
-            </div>
-            {hasAsyncQuestions && thread.status !== 'waitingInput' && (
+              {compactHeader && thread?.forkedFromId && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    void workspace.selectThread(thread.forkedFromId!);
+                  }}
+                >
+                  <ArrowLeft size={16} aria-hidden="true" />
+                  {t('workspace:return_to_original_session')}
+                </Button>
+              )}
+              {compactHeader && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-controls="diagnostics-panel"
+                  onClick={() => openMobileDiagnostics(moreActions.current)}
+                >
+                  <Icon name="settings" size={16} />
+                  {t('common:diagnostics')}
+                </Button>
+              )}
+            </HeaderActions>
+            {!compactHeader && hasAsyncQuestions && thread?.status !== 'waitingInput' && (
               <Status status="waitingInput" offline={offline} />
             )}
-            {thread && <Status status={thread.status} offline={offline} />}
+            {!compactHeader && thread && <Status status={thread.status} offline={offline} />}
             <ConnectionBadge connection={workspace.connection} />
-            {thread?.forkedFromId && (
+            {!compactHeader && thread?.forkedFromId && (
               <ControlHint
                 id="thread-source-hint"
                 content={t('workspace:return_to_original_session')}
@@ -683,6 +778,7 @@ export function App() {
               busy={workspace.busy}
               open={diagnosticsOpen}
               onOpenChange={setDiagnosticsOpen}
+              onDismiss={compactHeader ? closeMobileDiagnostics : undefined}
               refreshing={checkingStatus}
               onDiscardMissing={workspace.discardMissingOperation}
               onRefresh={() => {
@@ -700,6 +796,18 @@ export function App() {
               }}
             />
           </div>
+          {compactHeader && (
+            <div className="topbar-attention">
+              {(thread?.status === 'waitingApproval' ||
+                attention.some((request) => request.kind === 'approval')) && (
+                <Status status="waitingApproval" offline={offline} />
+              )}
+              {(thread?.status === 'waitingInput' ||
+                attention.some((request) => request.kind === 'answer')) && (
+                <Status status="waitingInput" offline={offline} />
+              )}
+            </div>
+          )}
         </header>
         {system?.demo && (
           <div className="demo-banner">
@@ -1161,7 +1269,9 @@ export function App() {
       </main>
       {projectDialog && (projectDialog.kind === 'add' || managedProject) && (
         <ProjectDialog
-          key={projectDialog.kind === 'add' ? 'add' : projectDialog.id}
+          key={projectDialog.kind === 'add' ? (projectDialog.cloneId ?? 'add') : projectDialog.id}
+          tasks={backgroundTasks}
+          cloneId={projectDialog.kind === 'add' ? projectDialog.cloneId : undefined}
           project={managedProject}
           disabled={workspace.authRequired}
           onAdd={workspace.addProject}

@@ -45,12 +45,13 @@ import type { PermissionRequirements, PermissionSelection } from '../../src/code
 import type { ActivePermissionProfile } from '../../src/codex/generated/v2/ActivePermissionProfile.js';
 
 export interface SimulatorOptions {
+  optionsPath?: string;
   accountUsagePath?: string;
   accountResponse?: GetAccountResponse;
   rateLimitResponses?: unknown[];
   rateLimitFailure?: boolean;
   rateLimitHang?: boolean;
-  rateLimitNotification?: 'account' | 'limits';
+  rateLimitNotification?: 'account' | 'routing' | 'limits';
   accountAfterNotification?: GetAccountResponse;
   configOverrides?: Record<string, JsonValue>;
   requirements?: Partial<PermissionRequirements> | null;
@@ -123,6 +124,9 @@ export interface SimulatorOptions {
   titleOutputs?: string[];
   accountType?: 'chatgpt' | 'apiKey';
   models?: string[];
+  providerModels?: Record<string, { id: string; efforts: ReasoningEffort[]; tiers?: string[] }[]>;
+  providerModelFailure?: string;
+  modelPageSize?: number;
   modelProvider?: string;
   threadModelProviders?: string[];
   activePermissionProfile?: string;
@@ -141,6 +145,8 @@ let accountNotified = false;
 const options = JSON.parse(
   optionsIndex < 0 ? '{}' : (process.argv[optionsIndex + 1] ?? '{}'),
 ) as SimulatorOptions;
+if (options.optionsPath && existsSync(options.optionsPath))
+  Object.assign(options, JSON.parse(readFileSync(options.optionsPath, 'utf8')));
 function usageControl(): {
   account?: GetAccountResponse;
   limits?: unknown;
@@ -161,7 +167,11 @@ if (options.accountUsagePath)
         method: 'account/rateLimits/updated',
         params: { rateLimits: { limitId: 'codex' } },
       } as ServerNotification);
-    else notify({ method: 'account/updated', params: { authMode: 'chatgpt', planType: 'plus' } });
+    else
+      notify({
+        method: 'account/updated',
+        params: { authMode: 'chatgpt', planType: 'plus', reason: null },
+      });
   });
 const threads = new Map<string, Thread>();
 const archived = new Set<string>();
@@ -219,6 +229,8 @@ function error(id: RequestId, message: string, code = -32602): void {
 }
 function makeThread(cwd: string): Thread {
   const id = randomUUID();
+  const provider =
+    options.threadModelProviders?.[threads.size] ?? options.modelProvider ?? 'openai';
   return {
     id,
     sessionId: id,
@@ -230,9 +242,9 @@ function makeThread(cwd: string): Thread {
     sectionEnteredAt: null,
     projectId: null,
     historyMode: options.paginated ? 'paginated' : 'legacy',
-    modelProvider:
-      options.threadModelProviders?.[threads.size] ?? options.modelProvider ?? 'openai',
-    model: savedModelDefaults?.model ?? 'simulated-model',
+    modelProvider: provider,
+    model:
+      savedModelDefaults?.model ?? options.providerModels?.[provider]?.[0]?.id ?? 'simulated-model',
     reasoningEffort: savedModelDefaults
       ? savedModelDefaults.effort
       : cwd.endsWith('other-project')
@@ -563,6 +575,7 @@ function asyncQuestions(
     const item: ThreadItem = {
       id: randomUUID(),
       type: 'agentMessage',
+      moderation: null,
       phase: 'final_answer',
       memoryCitation: null,
       delivery: 'async',
@@ -667,6 +680,7 @@ function execute(thread: Thread, turn: Turn, cmd = command(randomUUID(), thread.
   const item: ThreadItem = {
     id: randomUUID(),
     type: 'agentMessage',
+    moderation: null,
     text: '',
     phase: 'final_answer',
     memoryCitation: null,
@@ -736,6 +750,7 @@ function imageReply(
   const item: ThreadItem = {
     id: randomUUID(),
     type: 'agentMessage',
+    moderation: null,
     text,
     phase: 'final_answer',
     memoryCitation: null,
@@ -761,6 +776,7 @@ function markdownReply(
   const item: Extract<ThreadItem, { type: 'agentMessage' }> = {
     id: randomUUID(),
     type: 'agentMessage',
+    moderation: null,
     text: '',
     phase: 'final_answer',
     memoryCitation: null,
@@ -928,6 +944,7 @@ function transportHistory(thread: Thread, turn: Turn): void {
   turn.items.push({
     id: randomUUID(),
     type: 'agentMessage',
+    moderation: null,
     text:
       '### 长会话历史验证\n\n' +
       '这段历史正文应当保持完整，继续发送任务和重新连接后，仍然可以读到消息末尾。\n\n'.repeat(16) +
@@ -945,6 +962,7 @@ function stickyPromptReply(thread: Thread, turn: Turn, streaming: boolean): void
   const item: Extract<ThreadItem, { type: 'agentMessage' }> = {
     id: randomUUID(),
     type: 'agentMessage',
+    moderation: null,
     text: Array.from(
       { length: 48 },
       (_, index) =>
@@ -1020,6 +1038,7 @@ function activityScenario(thread: Thread, turn: Turn, streaming: boolean, mixed 
     finishedItem({
       id: randomUUID(),
       type: 'agentMessage',
+      moderation: null,
       text,
       phase,
       memoryCitation: null,
@@ -1195,6 +1214,7 @@ function contextCompaction(thread: Thread, turn: Turn, outcome: 'recover' | 'fai
       const reply: ThreadItem = {
         id: randomUUID(),
         type: 'agentMessage',
+        moderation: null,
         text: '已整理上下文，继续分析剩余实现与测试。',
         phase: 'commentary',
         memoryCitation: null,
@@ -1241,6 +1261,7 @@ function capacityScenario(thread: Thread, turn: Turn, mode: string): void {
         const item: ThreadItem = {
           id: randomUUID(),
           type: 'agentMessage',
+          moderation: null,
           text: mode === 'quote' ? MODEL_CAPACITY_MESSAGE : '容量恢复，继续处理原任务。',
           phase: 'final_answer',
           memoryCitation: null,
@@ -1363,6 +1384,7 @@ function codexReconnect(
       const item: ThreadItem = {
         id: randomUUID(),
         type: 'agentMessage',
+        moderation: null,
         text: '',
         phase: 'final_answer',
         memoryCitation: null,
@@ -1493,6 +1515,7 @@ function autoReview(
             const item: ThreadItem = {
               id: randomUUID(),
               type: 'agentMessage',
+              moderation: null,
               phase: 'final_answer',
               memoryCitation: null,
               delivery: null,
@@ -1604,6 +1627,7 @@ function approval(
       threadId: thread.id,
       turnId: options.elicitationTurnId === null ? null : turn.id,
       serverName: '截图发布服务',
+      environmentId: null,
       _meta:
         options.elicitationMeta ??
         (['elicitation-approval', 'elicitation-session', 'elicitation-session-array'].includes(kind)
@@ -1903,6 +1927,7 @@ function receive(request: ClientRequest): void {
                 : options.accountType === 'apiKey'
                   ? { type: 'apiKey' }
                   : null,
+            userId: null,
             requiresOpenaiAuth: false,
           },
       );
@@ -1923,10 +1948,15 @@ function receive(request: ClientRequest): void {
       if (limitReads === 1 && options.rateLimitNotification)
         setTimeout(() => {
           accountNotified = true;
-          if (options.rateLimitNotification === 'account') {
+          if (options.rateLimitNotification !== 'limits') {
             notify({
               method: 'account/updated',
-              params: { authMode: 'chatgpt', planType: 'plus' },
+              params: {
+                authMode: 'chatgpt',
+                planType: 'plus',
+                reason:
+                  options.rateLimitNotification === 'routing' ? 'workspaceRoutingReady' : null,
+              },
             });
           } else {
             notify({
@@ -1941,6 +1971,7 @@ function receive(request: ClientRequest): void {
       reply(request.id, {
         config: {
           mcp_servers: { 'fixture.tools': { command: 'unused', enabled: true } },
+          model_provider: options.modelProvider ?? 'openai',
           model:
             savedModelDefaults?.model ??
             (options.configModel === undefined ? 'simulated-model' : options.configModel),
@@ -2049,16 +2080,38 @@ function receive(request: ClientRequest): void {
         nextCursor: null,
       });
       break;
-    case 'model/list':
-      reply(request.id, {
-        data: (options.models ?? [model.model]).map((name) => ({
+    case 'model/list': {
+      const params = request.params;
+      const provider = params.modelProvider ?? options.modelProvider ?? 'openai';
+      if (params.modelProvider && provider === options.providerModelFailure) {
+        error(request.id, 'Provider catalog is unavailable', -32600);
+        break;
+      }
+      const entries =
+        options.providerModels?.[provider]?.map((entry) => ({
           ...model,
-          id: name,
-          model: name,
-        })),
-        nextCursor: null,
+          id: entry.id,
+          model: entry.id,
+          supportedReasoningEfforts: entry.efforts.map((reasoningEffort) => ({
+            reasoningEffort,
+            description: reasoningEffort,
+          })),
+          additionalSpeedTiers: entry.tiers ?? [],
+          serviceTiers: (entry.tiers ?? []).map((tier) => ({
+            id: tier === 'fast' ? 'priority' : tier,
+            name: tier,
+            description: tier,
+          })),
+        })) ??
+        (options.models ?? [model.model]).map((name) => ({ ...model, id: name, model: name }));
+      const offset = Number(params.cursor ?? 0);
+      const size = options.modelPageSize ?? entries.length;
+      reply(request.id, {
+        data: entries.slice(offset, offset + size),
+        nextCursor: offset + size < entries.length ? String(offset + size) : null,
       });
       break;
+    }
     case 'thread/start': {
       if (options.rejectPermissions && (request.params as PermissionSelection).permissions) {
         error(request.id, 'Managed policy rejected permission selection');
@@ -2655,6 +2708,7 @@ function receive(request: ClientRequest): void {
               const item: ThreadItem = {
                 id: randomUUID(),
                 type: 'agentMessage',
+                moderation: null,
                 phase: 'final_answer',
                 memoryCitation: null,
                 delivery: null,

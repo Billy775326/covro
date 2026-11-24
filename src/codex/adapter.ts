@@ -5,6 +5,7 @@ import { nullLogger, type Logger } from '../logging/logger.js';
 import { errorFields } from '../logging/fields.js';
 import { logContext, withLogContext } from '../logging/context.js';
 import { CODEX_COMPATIBILITY } from './compatibility.js';
+import { readModels } from './models.js';
 import { AccountUsageReader } from './account-usage.js';
 import type { GetAccountRateLimitsResponse } from './generated/v2/GetAccountRateLimitsResponse.js';
 import { SHELL_TIMEOUT_MS, SHELL_OUTPUT_BYTES } from '../shared/shell.js';
@@ -130,7 +131,7 @@ export type {
 export { CodexError } from './transport.js';
 
 export const VERIFIED_CODEX_VERSION = CODEX_COMPATIBILITY.recommended;
-const LIVE_SETTINGS_CODEX_VERSION = '0.167.0';
+const LIVE_SETTINGS_CODEX_VERSION = '0.171.0';
 const CAPABILITIES = [
   'command/exec',
   'command/exec/terminate',
@@ -217,6 +218,14 @@ type ActionContext = {
   decisions: Map<string, CommandExecutionApprovalDecision>;
   responding: boolean;
 };
+
+function hasModelSettings(settings?: Settings): boolean {
+  return (
+    settings?.model !== undefined ||
+    settings?.reasoningEffort !== undefined ||
+    settings?.serviceTier !== undefined
+  );
+}
 
 function permissionPathLabel(path: FileSystemPath): string {
   if (path.type === 'path') return path.path;
@@ -491,7 +500,7 @@ export class CodexAdapter implements CodexClient {
       await rpc.notify('initialized');
       const [account, models] = await Promise.all([
         this.call('account/read', { refreshToken: false }, true),
-        this.call('model/list', { limit: 100 }, true),
+        readModels((params) => this.call('model/list', params, true)),
       ]);
       if (
         !isRecord(account) ||
@@ -504,39 +513,7 @@ export class CodexAdapter implements CodexClient {
           true,
         );
       this.state.authenticated = account.account !== null || !account.requiresOpenaiAuth;
-      this.state.models = models.data.map((model) => ({
-        id: model.model,
-        name: model.displayName,
-        description: model.description,
-        reasoningEfforts: model.supportedReasoningEfforts.map((effort) => effort.reasoningEffort),
-        defaultReasoningEffort: model.defaultReasoningEffort,
-        serviceTiers:
-          model.serviceTiers?.map((tier) => (tier.id === 'priority' ? 'fast' : tier.id)) ??
-          model.additionalSpeedTiers,
-      }));
-      let cursor = models.nextCursor;
-      const seen = new Set<string>();
-      while (cursor) {
-        if (seen.has(cursor) || seen.size >= 100)
-          throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Invalid model pagination');
-        seen.add(cursor);
-        const page = await this.call('model/list', { limit: 100, cursor }, true);
-        this.state.models.push(
-          ...page.data.map((model) => ({
-            id: model.model,
-            name: model.displayName,
-            description: model.description,
-            reasoningEfforts: model.supportedReasoningEfforts.map(
-              (effort) => effort.reasoningEffort,
-            ),
-            defaultReasoningEffort: model.defaultReasoningEffort,
-            serviceTiers:
-              model.serviceTiers?.map((tier) => (tier.id === 'priority' ? 'fast' : tier.id)) ??
-              model.additionalSpeedTiers,
-          })),
-        );
-        cursor = page.nextCursor;
-      }
+      this.state.models = models;
       this.titles?.configure(
         account.account?.type === 'chatgpt',
         this.state.models.map((model) => model.id),
@@ -570,7 +547,8 @@ export class CodexAdapter implements CodexClient {
     this.restartTimer = undefined;
     await this.starting?.catch(() => {});
     await this.recovering;
-    await this.stopProcess();
+    if (!(await this.stopProcess()))
+      throw new CodexError('CODEX_STOP_TIMEOUT', 'Managed Codex app-server did not exit');
   }
   private scheduleRestart(): void {
     if (this.stopped || this.restartTimer) return;
@@ -578,8 +556,12 @@ export class CodexAdapter implements CodexClient {
     this.restartTimer = setTimeout(() => {
       this.restartTimer = undefined;
       this.recovering = (async () => {
-        await this.stopProcess();
+        const exited = await this.stopProcess();
         if (this.stopped) return;
+        if (!exited) {
+          this.scheduleRestart();
+          return;
+        }
         try {
           await this.start();
           this.restartAttempt = 0;
@@ -595,20 +577,24 @@ export class CodexAdapter implements CodexClient {
   }
   private async stopProcess(
     reason = new CodexError('CODEX_UNAVAILABLE', 'Codex connection closed by this service', true),
-  ): Promise<void> {
+  ): Promise<boolean> {
     const child = this.child;
     this.state.ready = false;
     this.state.connection = 'unavailable';
     this.expireActions();
     this.rpc?.fail(reason);
-    if (!child || child.exitCode !== null || child.signalCode !== null) return;
+    if (!child || child.exitCode !== null || child.signalCode !== null) return true;
+    if (child.pid === undefined) {
+      if (this.child === child) this.child = undefined;
+      return true;
+    }
     child.stdin.end();
-    await new Promise<void>((resolve) => {
+    const exited = await new Promise<boolean>((resolve) => {
       const term = setTimeout(() => child.kill('SIGTERM'), 1000);
       const kill = setTimeout(() => child.kill('SIGKILL'), 2500);
       const done = setTimeout(() => {
         cleanup();
-        resolve();
+        resolve(false);
       }, 3500);
       const cleanup = () => {
         clearTimeout(term);
@@ -617,10 +603,11 @@ export class CodexAdapter implements CodexClient {
       };
       child.once('exit', () => {
         cleanup();
-        resolve();
+        resolve(true);
       });
     });
-    if (this.child === child) this.child = undefined;
+    if (exited && this.child === child) this.child = undefined;
+    return exited;
   }
   private async call<M extends keyof Responses>(
     method: M,
@@ -645,9 +632,50 @@ export class CodexAdapter implements CodexClient {
       throw error;
     }
   }
-  private validateSettings(settings: Settings = {}, current?: RuntimeSettings): void {
+  private async modelCatalog(provider: string) {
+    const epoch = this.epoch;
+    const models = await readModels((params) => this.call('model/list', params), provider);
+    if (epoch !== this.epoch)
+      throw new CodexError('CODEX_UNAVAILABLE', 'Codex changed while reading the model catalog');
+    return { provider, models };
+  }
+  private async reportedCatalog(provider: string): Promise<Pick<RuntimeSettings, 'modelCatalog'>> {
+    if (this.state.codexVersion !== '0.171.0') return {};
+    try {
+      return { modelCatalog: await this.modelCatalog(provider) };
+    } catch {
+      // A failed optional read must neither hide history nor undo an acknowledged mutation.
+      return { modelCatalog: { provider, models: [], unavailable: true } };
+    }
+  }
+  private async settingsContext(cwd: string, id?: string): Promise<RuntimeSettings | undefined> {
+    if (this.state.codexVersion !== '0.171.0') return id ? this.permissionState.get(id) : undefined;
+    if (id) {
+      const current = this.permissionState.get(id);
+      if (current?.modelProvider) return current;
+      const thread = await this.readThreadHeader(id);
+      return mapThread(thread).runtimeSettings;
+    }
+    const { config } = await this.call('config/read', { cwd, includeLayers: false });
+    return {
+      model: config.model,
+      reasoningEffort: config.model_reasoning_effort,
+      modelProvider: config.model_provider ?? 'openai',
+    };
+  }
+  private async validateSettings(
+    settings: Settings = {},
+    current?: RuntimeSettings,
+  ): Promise<void> {
+    if (!hasModelSettings(settings)) return;
+    if (this.state.codexVersion === '0.171.0' && !current?.modelProvider)
+      throw new CodexError('PROTOCOL_INCOMPATIBLE', "Codex did not report this session's provider");
+    const models =
+      this.state.codexVersion === '0.171.0'
+        ? (await this.modelCatalog(current!.modelProvider!)).models
+        : this.state.models;
     const selectedModel = settings.model ?? current?.model;
-    const model = this.state.models.find((entry) => entry.id === selectedModel);
+    const model = models.find((entry) => entry.id === selectedModel);
     if (settings.model !== undefined && !model)
       throw new AppError('VALIDATION_ERROR', '模型不在当前 Codex 模型列表中');
     const effort =
@@ -655,12 +683,18 @@ export class CodexAdapter implements CodexClient {
     if (
       effort != null &&
       !(
-        model?.reasoningEfforts ?? this.state.models.flatMap((entry) => entry.reasoningEfforts)
+        model?.reasoningEfforts ??
+        (selectedModel || this.state.codexVersion === '0.171.0'
+          ? []
+          : models.flatMap((entry) => entry.reasoningEfforts))
       ).includes(effort)
     )
       throw new AppError('VALIDATION_ERROR', '所选推理强度不受当前模型支持');
     const tier = settings.serviceTier !== undefined ? settings.serviceTier : current?.serviceTier;
-    if (tier === 'fast' && model && !model.serviceTiers?.includes('fast'))
+    if (
+      tier === 'fast' &&
+      (model ? !model.serviceTiers?.includes('fast') : this.state.codexVersion === '0.171.0')
+    )
       throw new AppError('VALIDATION_ERROR', '所选模型不支持 Fast');
   }
   async listThreads(
@@ -735,7 +769,59 @@ export class CodexAdapter implements CodexClient {
         throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Invalid archive pagination');
       if (cursor) seen.add(cursor);
     } while (cursor);
-    return { ...mapThread(thread), archived: this.observeArchive(thread.id, archived, sequence) };
+    const view = mapThread(thread);
+    return {
+      ...view,
+      runtimeSettings: {
+        ...view.runtimeSettings!,
+        ...(await this.reportedCatalog(thread.modelProvider)),
+      },
+      archived: this.observeArchive(thread.id, archived, sequence),
+    };
+  }
+
+  private async *loadedThreadIds() {
+    let cursor: string | null = null;
+    const seen = new Set<string>();
+    do {
+      const page: ThreadLoadedListResponse = await this.call('thread/loaded/list', {
+        cursor,
+        limit: 100,
+      });
+      yield* page.data;
+      cursor = page.nextCursor;
+      if (cursor && (seen.has(cursor) || seen.size >= 1000))
+        throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Invalid loaded thread pagination');
+      if (cursor) seen.add(cursor);
+    } while (cursor);
+  }
+
+  private async loadedThread(id: string) {
+    try {
+      return (await this.call('thread/read', { threadId: id, includeTurns: false })).thread;
+    } catch (error) {
+      // A completed helper can unload after the loaded-thread snapshot.
+      if (
+        error instanceof CodexError &&
+        error.rpcCode === -32600 &&
+        error.message === `thread not loaded: ${id}`
+      )
+        return;
+      throw error;
+    }
+  }
+
+  async loadedThreadActivity() {
+    const active = new Set<ReturnType<typeof threadStatus>>();
+    if (!this.ready) return active;
+    const epoch = this.epoch;
+    for await (const id of this.loadedThreadIds()) {
+      const thread = await this.loadedThread(id);
+      if (thread?.status.type === 'active') active.add(threadStatus(thread.status));
+    }
+    if (this.epoch !== epoch || !this.ready)
+      throw new CodexError('CODEX_UNAVAILABLE', 'Codex restarted during the idle check', true);
+    return active;
   }
 
   /** Native archive also shuts down spawned descendants, even already-archived ones. */
@@ -749,44 +835,22 @@ export class CodexAdapter implements CodexClient {
       }
       return thread;
     };
-    let cursor: string | null = null;
-    const seen = new Set<string>();
-    do {
-      const page: ThreadLoadedListResponse = await this.call('thread/loaded/list', {
-        cursor,
-        limit: 100,
-      });
-      for (const id of page.data) {
-        let thread: Thread;
-        try {
-          thread = await read(id);
-        } catch (error) {
-          // A completed helper can unload after the loaded-thread snapshot.
-          if (
-            error instanceof CodexError &&
-            error.rpcCode === -32600 &&
-            error.message === `thread not loaded: ${id}`
-          )
-            continue;
-          throw error;
-        }
-        if (thread.status.type !== 'active') continue;
-        const ancestors = new Set<string>();
-        for (;;) {
-          if (thread.id === rootId)
-            throw new AppError('THREAD_BUSY', '会话或其子任务仍在运行，结束后才能归档', 409);
-          if (!thread.parentThreadId) break;
-          if (ancestors.has(thread.id))
-            throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Invalid thread ancestry');
-          ancestors.add(thread.id);
-          thread = await read(thread.parentThreadId);
-        }
+    for await (const id of this.loadedThreadIds()) {
+      let thread = threads.get(id) ?? (await this.loadedThread(id));
+      if (!thread) continue;
+      threads.set(id, thread);
+      if (thread.status.type !== 'active') continue;
+      const ancestors = new Set<string>();
+      for (;;) {
+        if (thread.id === rootId)
+          throw new AppError('THREAD_BUSY', '会话或其子任务仍在运行，结束后才能归档', 409);
+        if (!thread.parentThreadId) break;
+        if (ancestors.has(thread.id))
+          throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Invalid thread ancestry');
+        ancestors.add(thread.id);
+        thread = await read(thread.parentThreadId);
       }
-      cursor = page.nextCursor;
-      if (cursor && (seen.has(cursor) || seen.size >= 1000))
-        throw new CodexError('PROTOCOL_INCOMPATIBLE', 'Invalid loaded thread pagination');
-      if (cursor) seen.add(cursor);
-    } while (cursor);
+    }
   }
 
   async renameThread(id: string, name: string): Promise<void> {
@@ -958,7 +1022,10 @@ export class CodexAdapter implements CodexClient {
     return this.storedThread(thread, sequence);
   }
   async createThread(cwd: string, settings?: Settings): Promise<ThreadView> {
-    this.validateSettings(settings);
+    await this.validateSettings(
+      settings,
+      hasModelSettings(settings) ? await this.settingsContext(cwd) : undefined,
+    );
     await this.validatePermissionSettings(cwd, settings);
     const titles = this.titles;
     const result = await this.call('thread/start', { cwd, ...threadSettings(settings) });
@@ -1002,7 +1069,10 @@ export class CodexAdapter implements CodexClient {
         reasoningEffort: config.model_reasoning_effort ?? null,
         permissionMode: this.configuredPermissionMode(config),
       },
-      models: this.state.models,
+      models:
+        this.state.codexVersion === '0.171.0'
+          ? (await this.modelCatalog(config.model_provider ?? 'openai')).models
+          : this.state.models,
       capabilities: await this.readPermissionCapabilities(undefined, config),
       version:
         result.layers?.find((layer) => layer.name.type === 'user' && !layer.name.profile)
@@ -1011,12 +1081,20 @@ export class CodexAdapter implements CodexClient {
   }
   async saveGlobalDefaults(input: SaveGlobalDefaultsInput): Promise<ModelDefaultsResult> {
     const settings = input.settings;
-    this.validateSettings({
-      ...(settings.model === null ? {} : { model: settings.model }),
-      ...(settings.reasoningEffort === null ? {} : { reasoningEffort: settings.reasoningEffort }),
-    });
     if (settings.model === null && settings.reasoningEffort !== null)
       throw new AppError('VALIDATION_ERROR', 'Choose a model before setting reasoning effort');
+    const { config } = await this.call('config/read', { includeLayers: false });
+    await this.validateSettings(
+      {
+        ...(settings.model === null ? {} : { model: settings.model }),
+        ...(settings.reasoningEffort === null ? {} : { reasoningEffort: settings.reasoningEffort }),
+      },
+      {
+        model: settings.model,
+        reasoningEffort: settings.reasoningEffort,
+        modelProvider: config.model_provider ?? 'openai',
+      },
+    );
     const edits: ConfigEdit[] = [
       { keyPath: 'model', value: settings.model, mergeStrategy: 'replace' },
       {
@@ -1051,10 +1129,20 @@ export class CodexAdapter implements CodexClient {
     return { status: result.status };
   }
   async saveModelDefaults(settings: ModelDefaults): Promise<ModelDefaultsResult> {
-    this.validateSettings({
-      model: settings.model,
-      ...(settings.reasoningEffort === null ? {} : { reasoningEffort: settings.reasoningEffort }),
-    });
+    const context = await this.settingsContext(process.cwd());
+    if (
+      settings.modelProvider &&
+      context?.modelProvider &&
+      settings.modelProvider !== context.modelProvider
+    )
+      return { status: 'threadOnly' };
+    await this.validateSettings(
+      {
+        model: settings.model,
+        ...(settings.reasoningEffort === null ? {} : { reasoningEffort: settings.reasoningEffort }),
+      },
+      context,
+    );
     // Match the CLI picker: write a complete pair to the owning server's user/profile config.
     // No file path or permission fields can be supplied by the browser.
     const result = await this.call('config/batchWrite', {
@@ -1075,6 +1163,8 @@ export class CodexAdapter implements CodexClient {
     const { config } = await this.call('config/read', { cwd, includeLayers: false });
     // Config can contain credentials and instructions. Only displayable fields cross the gateway.
     return {
+      modelProvider: config.model_provider ?? 'openai',
+      ...(await this.reportedCatalog(config.model_provider ?? 'openai')),
       model: typeof config.model === 'string' ? config.model : null,
       reasoningEffort:
         typeof config.model_reasoning_effort === 'string' ? config.model_reasoning_effort : null,
@@ -1192,6 +1282,8 @@ export class CodexAdapter implements CodexClient {
   private async responseRuntimeSettings(result: ThreadStartResponse): Promise<RuntimeSettings> {
     const previous = this.permissionState.get(result.thread.id);
     const settings: RuntimeSettings = {
+      modelProvider: result.modelProvider,
+      ...(await this.reportedCatalog(result.modelProvider)),
       model: result.model ?? result.thread.model ?? null,
       ...reportedCollaborationMode(
         (result as ThreadStartResponse & CollaborationProvenance).collaborationMode,
@@ -1213,6 +1305,8 @@ export class CodexAdapter implements CodexClient {
       latest && latest !== previous
         ? {
             ...latest,
+            modelProvider: settings.modelProvider,
+            modelCatalog: settings.modelCatalog,
             permissionCapabilities: settings.permissionCapabilities,
             liveSettingsCapabilities: settings.liveSettingsCapabilities,
           }
@@ -1225,7 +1319,10 @@ export class CodexAdapter implements CodexClient {
     return settings;
   }
   async resumeThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView> {
-    this.validateSettings(settings);
+    await this.validateSettings(
+      settings,
+      hasModelSettings(settings) ? await this.settingsContext(cwd, id) : undefined,
+    );
     await this.validatePermissionSettings(cwd, settings, id);
     const titles = this.titles;
     let result: ThreadResumeResponse;
@@ -1252,7 +1349,10 @@ export class CodexAdapter implements CodexClient {
     return { ...view, runtimeSettings: await this.responseRuntimeSettings(result) };
   }
   async forkThread(id: string, cwd: string, settings?: Settings): Promise<ThreadView> {
-    this.validateSettings(settings);
+    await this.validateSettings(
+      settings,
+      hasModelSettings(settings) ? await this.settingsContext(cwd, id) : undefined,
+    );
     await this.validatePermissionSettings(cwd, settings, id);
     const titles = this.titles;
     const result = await this.call('thread/fork', {
@@ -1365,7 +1465,10 @@ export class CodexAdapter implements CodexClient {
     skills?: import('../shared/skills.js').SkillReference[],
     clientUserMessageId?: string,
   ): Promise<TurnView> {
-    this.validateSettings(settings, this.permissionState.get(id));
+    await this.validateSettings(
+      settings,
+      hasModelSettings(settings) ? await this.settingsContext(cwd, id) : undefined,
+    );
     await this.validatePermissionSettings(cwd, settings, id);
     this.titles?.trackUserInput(id);
     const turn = mapTurn(
@@ -1389,7 +1492,7 @@ export class CodexAdapter implements CodexClient {
     turnId: string,
     settings: LiveSettings,
   ): Promise<Partial<Omit<LiveSettingsState, 'turnId'>>> {
-    // Exact experimental 0.167.0 contract; stable generation intentionally omits this method.
+    // Exact experimental 0.171.0 contract; stable generation intentionally omits this method.
     if (this.state.codexVersion !== LIVE_SETTINGS_CODEX_VERSION)
       throw new AppError('PROTOCOL_INCOMPATIBLE', '执行中配置更新尚未核验此 Codex 版本');
     const epoch = this.epoch;
@@ -1402,7 +1505,10 @@ export class CodexAdapter implements CodexClient {
           'LIVE_SETTINGS_UNAVAILABLE',
           '当前实例未启用 step_model_switching；Fast 下轮生效',
         );
-      const model = this.state.models.find((entry) => entry.id === current?.model);
+      const models = current?.modelCatalog
+        ? (await this.modelCatalog(current.modelCatalog.provider)).models
+        : this.state.models;
+      const model = models.find((entry) => entry.id === current?.model);
       if (settings.serviceTier === 'fast' && !model?.serviceTiers?.includes('fast'))
         throw new AppError('VALIDATION_ERROR', '当前轮次模型不支持 Fast');
       patch.serviceTier = settings.serviceTier;
@@ -1575,7 +1681,16 @@ export class CodexAdapter implements CodexClient {
         break;
       case 'thread/settings/updated':
         {
+          const provider = event.params.threadSettings.modelProvider;
+          const catalog = this.permissionState.get(event.params.threadId)?.modelCatalog;
           const observed: RuntimeSettings = {
+            modelProvider: provider,
+            modelCatalog:
+              catalog?.provider === provider
+                ? catalog
+                : this.state.codexVersion === '0.171.0' && provider
+                  ? { provider, models: [], unavailable: true }
+                  : undefined,
             ...reportedCollaborationMode(
               (
                 event.params.threadSettings as typeof event.params.threadSettings &

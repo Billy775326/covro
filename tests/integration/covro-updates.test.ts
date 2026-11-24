@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { BackupStore } from '../../src/backups/store.js';
 import { migrateSqlite, readMigrations } from '../../src/server/db/history.js';
 import { defaultMigrationsFolder } from '../../src/server/db/migrate.js';
@@ -119,10 +120,11 @@ async function fixture() {
     contract: databaseCompatibilitySchema.parse(packageInfo.covroDatabase),
     migrations,
     Sqlite: Database,
+    sqliteModulePath: createRequire(import.meta.url).resolve('better-sqlite3'),
   });
   const phases: string[] = [];
   const effects: UpdateEffects = {
-    waitForIdle: vi.fn(async () => {}),
+    prepare: vi.fn(async () => true),
     backup: async () => {
       await backups.create({ id: 'backup', trigger: 'preUpgrade' });
     },
@@ -131,7 +133,7 @@ async function fixture() {
     },
     stop: vi.fn(async () => {}),
     start: vi.fn(async () => {}),
-    verify: vi.fn(async () => {}),
+    verify: vi.fn(async () => true),
     commit: vi.fn(async () => {}),
     phase: async (phase) => {
       phases.push(phase);
