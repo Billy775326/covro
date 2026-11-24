@@ -76,7 +76,7 @@ export const api = {
       signal,
     ),
   saveGlobalDefaults: (input: import('../../shared/global-defaults').SaveGlobalDefaultsInput) =>
-    request<Operation>('/api/settings/defaults', input),
+    request<import('../../shared/types').ModelDefaultsResult>('/api/settings/defaults', input),
   globalInstructions: (signal?: AbortSignal) =>
     request<import('../../shared/global-instructions').GlobalInstructions>(
       '/api/instructions/global',

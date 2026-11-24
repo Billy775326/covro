@@ -1736,7 +1736,6 @@ describe('global session defaults', () => {
     expect(JSON.stringify(initial)).not.toContain('private-test-key');
     expect(JSON.stringify(initial)).not.toContain('private instructions');
     await adapter.saveGlobalDefaults({
-      clientOperationId: crypto.randomUUID(),
       version: initial.version,
       settings: { model: 'other-model', reasoningEffort: 'high', permissionMode: 'auto-review' },
     });
@@ -1767,7 +1766,6 @@ describe('global session defaults', () => {
     });
     await expect(
       adapter.saveGlobalDefaults({
-        clientOperationId: crypto.randomUUID(),
         version: initial.version,
         settings: { model: 'simulated-model', reasoningEffort: 'medium', permissionMode: 'ask' },
       }),
@@ -1784,7 +1782,6 @@ describe('global session defaults', () => {
     ])
       await expect(
         adapter.saveGlobalDefaults({
-          clientOperationId: crypto.randomUUID(),
           version: null,
           settings,
         }),
@@ -1798,7 +1795,6 @@ describe('global session defaults', () => {
     const initial = await adapter.readGlobalDefaults();
     expect(initial.settings.permissionMode).toBe(null);
     await adapter.saveGlobalDefaults({
-      clientOperationId: crypto.randomUUID(),
       version: initial.version,
       settings: { model: 'simulated-model', reasoningEffort: null, permissionMode: null },
     });

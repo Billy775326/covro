@@ -380,8 +380,7 @@ export function createApp({
   );
   app.get('/api/settings/defaults', async (c) => c.json(await service.readGlobalDefaults()));
   app.post('/api/settings/defaults', async (c) => {
-    const operation = await service.saveGlobalDefaults(await parse(c, saveGlobalDefaultsSchema));
-    return c.json(operation, status(operation));
+    return c.json(await service.saveGlobalDefaults(await parse(c, saveGlobalDefaultsSchema)));
   });
   app.get('/api/projects/:projectId/runtime-settings', async (c) =>
     c.json(await service.readRuntimeSettings(id(c.req.param('projectId')))),

@@ -1,17 +1,24 @@
 import { SettingsSurface, useSettingsLeaveGuard } from './SettingsSurface';
 import { useEffect, useRef, useState } from 'react';
 import type { GlobalDefaultsSnapshot, GlobalDefaultSettings } from '../../shared/global-defaults';
-import type { ModelDefaultsResult, PermissionMode } from '../../shared/types';
-import { api } from '../lib/api';
+import type { PermissionMode } from '../../shared/types';
+import { api, HttpError } from '../lib/api';
 import { readableError } from '../lib/utils';
 import { permissionModes, permissionModeUnavailable } from '../lib/permissions';
-import { errorMessage } from '../lib/error-message';
 import { displayMessage } from '../i18n/messages';
 import { t } from '../i18n';
 import { Button } from './ui/button';
 import { Icon } from './Icon';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 const automatic = '__codex_default__';
+function notifyDefaultsChanged() {
+  window.dispatchEvent(new Event('covro:defaults-updated'));
+  if (typeof BroadcastChannel === 'function') {
+    const channel = new BroadcastChannel('covro-defaults');
+    channel.postMessage('updated');
+    channel.close();
+  }
+}
 export function GlobalDefaultsDialog({
   disabled,
   onClose,
@@ -28,6 +35,7 @@ export function GlobalDefaultsDialog({
   const [error, setError] = useState<string>();
   const [status, setStatus] = useState<string>();
   const [uncertain, setUncertain] = useState(false);
+  const [reloadRequired, setReloadRequired] = useState(false);
   const [discard, setDiscard] = useState(false);
   const dirty = Boolean(
     snapshot && draft && JSON.stringify(snapshot.settings) !== JSON.stringify(draft),
@@ -83,6 +91,8 @@ export function GlobalDefaultsDialog({
     try {
       accept(await api.globalDefaults());
       setUncertain(false);
+      setReloadRequired(false);
+      notifyDefaultsChanged();
     } catch (problem) {
       setError(readableError(problem));
     } finally {
@@ -98,7 +108,7 @@ export function GlobalDefaultsDialog({
       disabled ||
       unavailable ||
       invalidEffort ||
-      uncertain
+      reloadRequired
     )
       return;
     busy.current = true;
@@ -106,24 +116,10 @@ export function GlobalDefaultsDialog({
     setError(undefined);
     setStatus(undefined);
     try {
-      const receipt = await api.saveGlobalDefaults({
-        clientOperationId: crypto.randomUUID(),
-        version: snapshot.version,
-        settings: draft,
-      });
-      if (receipt.status === 'failed') {
-        setError(errorMessage(receipt.error ?? { code: 'CONFIG_WRITE_FAILED', message: '' }));
-        return;
-      }
-      if (receipt.status !== 'acknowledged') {
-        setUncertain(true);
-        setStatus(t('settings:global_defaults_uncertain'));
-        return;
-      }
-      setUncertain(true);
+      const result = await api.saveGlobalDefaults({ version: snapshot.version, settings: draft });
       accept(await api.globalDefaults());
       setUncertain(false);
-      const result = receipt.result as ModelDefaultsResult;
+      setReloadRequired(false);
       setStatus(
         t(
           result.status === 'okOverridden'
@@ -131,15 +127,19 @@ export function GlobalDefaultsDialog({
             : 'settings:global_defaults_saved',
         ),
       );
-      window.dispatchEvent(new Event('covro:defaults-updated'));
-      if (typeof BroadcastChannel === 'function') {
-        const channel = new BroadcastChannel('covro-defaults');
-        channel.postMessage('updated');
-        channel.close();
-      }
+      notifyDefaultsChanged();
     } catch (problem) {
       setError(readableError(problem));
-      setUncertain(true);
+      setReloadRequired(true);
+      const details = problem instanceof HttpError ? problem.problem.details : undefined;
+      const reportedUncertain =
+        typeof details === 'object' && details !== null && 'uncertain' in details
+          ? details.uncertain
+          : undefined;
+      const definiteFailure =
+        problem instanceof HttpError &&
+        (reportedUncertain === false || (reportedUncertain !== true && problem.status < 500));
+      setUncertain(!definiteFailure);
     } finally {
       busy.current = false;
       setSaving(false);
@@ -301,7 +301,7 @@ export function GlobalDefaultsDialog({
       <div className="project-dialog-actions">
         <Button
           variant="secondary"
-          disabled={saving || loading || (dirty && !uncertain)}
+          disabled={saving || loading || (dirty && !reloadRequired)}
           onClick={() => void reload()}
         >
           {t('settings:global_defaults_reload')}
@@ -315,7 +315,7 @@ export function GlobalDefaultsDialog({
             !snapshot ||
             Boolean(unavailable) ||
             invalidEffort ||
-            uncertain
+            reloadRequired
           }
           onClick={() => void save()}
         >

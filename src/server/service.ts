@@ -150,6 +150,7 @@ export class GatewayService {
   private readonly inFlightOperations = new Set<string>();
   private readonly instructionsHome: string;
   private readonly instructionWrites = new Set<Promise<unknown>>();
+  private readonly defaultWrites = new Set<Promise<unknown>>();
   private readonly pendingThreadCreations = new Map<string, string>();
   private readonly capacityLinks = new Map<string, Map<string, string>>();
 
@@ -328,6 +329,7 @@ export class GatewayService {
     if (this.shell.active()) return { ready: false, reason: '等待 Shell 命令结束' };
     if (
       this.instructionWrites.size ||
+      this.defaultWrites.size ||
       this.inFlightOperations.size ||
       this.resumes.size ||
       this.pendingThreadCreations.size
@@ -643,16 +645,34 @@ export class GatewayService {
       throw new AppError('PROTOCOL_INCOMPATIBLE', 'Global defaults are not supported', 503);
     return this.codex.readGlobalDefaults();
   }
-  async saveGlobalDefaults(input: SaveGlobalDefaultsInput): Promise<Operation> {
-    return this.perform('config.globalDefaults', UNASSIGNED_SCOPE, input, async () => {
-      this.ensureReady();
-      this.ensureCompatibilityConfirmed();
-      if (!this.codex.saveGlobalDefaults)
-        throw new AppError('PROTOCOL_INCOMPATIBLE', 'Global defaults are not supported', 503);
-      this.store.dispatch(input.clientOperationId);
-      const result = await this.codex.saveGlobalDefaults(input);
-      return { result };
-    });
+  async saveGlobalDefaults(input: SaveGlobalDefaultsInput) {
+    if (!this.accepting) throw new AppError('CODEX_UNAVAILABLE', '服务正在关闭', 503);
+    if (this.maintenance) throw this.maintenanceError();
+    this.ensureReady();
+    this.ensureCompatibilityConfirmed();
+    if (!this.codex.saveGlobalDefaults)
+      throw new AppError('PROTOCOL_INCOMPATIBLE', 'Global defaults are not supported', 503);
+    const logger = this.logger.child({ ...logContext(), component: 'global_defaults' });
+    const started = performance.now();
+    // Only an in-flight write holds maintenance. Codex configuration is the durable truth.
+    const pending = Promise.resolve().then(() => this.codex.saveGlobalDefaults!(input));
+    this.defaultWrites.add(pending);
+    try {
+      const result = await pending;
+      logger.info('global_defaults.saved', {
+        outcome: result.status,
+        durationMs: Math.round(performance.now() - started),
+      });
+      return result;
+    } catch (error) {
+      logger.warn('global_defaults.save_failed', {
+        ...errorFields(error),
+        durationMs: Math.round(performance.now() - started),
+      });
+      throw this.asAppError(error);
+    } finally {
+      this.defaultWrites.delete(pending);
+    }
   }
   async saveModelDefaults(
     projectId: string | null,
@@ -2044,7 +2064,7 @@ export class GatewayService {
 
   async shutdown(): Promise<void> {
     this.accepting = false;
-    await Promise.allSettled([...this.instructionWrites]);
+    await Promise.allSettled([...this.instructionWrites, ...this.defaultWrites]);
     this.capacityRetries.clearAll();
     await this.projectClones.close();
     this.store.recover();

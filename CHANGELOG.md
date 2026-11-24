@@ -14,6 +14,8 @@
 
 ### Fixed
 
+- Keep session-default saves out of persistent task tracking so a lost acknowledgement cannot block backups or updates. Reload configuration to confirm an uncertain result without resubmitting the write.
+
 - Align the appearance selector typography and controls with the language selector on desktop and mobile.
 - Improve technical error detail contrast and text size in dark mode.
 

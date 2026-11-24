@@ -10,7 +10,6 @@ export const globalDefaultsSettingsSchema = z
   .strict();
 export const saveGlobalDefaultsSchema = z
   .object({
-    clientOperationId: z.string().uuid(),
     version: z.string().min(1).max(256).nullable(),
     settings: globalDefaultsSettingsSchema,
   })
