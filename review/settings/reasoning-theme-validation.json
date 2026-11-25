@@ -1,0 +1,157 @@
+{
+  "pullRequest": "https://github.com/yuzheng14/covro/pull/361",
+  "sourceCommit": "fc97899dfd8309aba4c6aa96f543de636caa38d9",
+  "baseCommit": "c021118077e843db402cad0b36c3b4331ea2383c",
+  "environment": {
+    "node": "24.22.3",
+    "pnpm": "12.11.2",
+    "playwright": "1.64.0",
+    "browser": "Chromium headless shell 1248",
+    "testData": "Isolated synthetic fixtures"
+  },
+  "checksPassed": [
+    "pnpm format:check",
+    "pnpm typecheck",
+    "pnpm lint",
+    "pnpm build",
+    "git diff --check",
+    "git diff --cached --check"
+  ],
+  "browserValidation": {
+    "distinctCasesPassed": 19,
+    "failedCompletedCases": 0,
+    "declaredSkipped": 0,
+    "batches": [
+      {
+        "scope": "reasoning-visuals.spec.ts: first seven theme/viewport cases",
+        "completedPassed": 7,
+        "wholeRunCompleted": false,
+        "exitCode": 143
+      },
+      {
+        "scope": "reasoning-visuals.spec.ts: remaining explicit dark/mobile case and both reduced-motion cases",
+        "completedPassed": 3,
+        "wholeRunCompleted": true
+      },
+      {
+        "scope": "workdir.spec.ts",
+        "completedPassed": 4,
+        "wholeRunCompleted": true
+      },
+      {
+        "scope": "settings-review.spec.ts and theme.spec.ts",
+        "completedPassed": 5,
+        "wholeRunCompleted": true
+      }
+    ],
+    "interruption": "The first browser invocation received SIGTERM after seven completed passes. Its unfinished cases were completed in smaller batches. The signal source was not established; the interrupted invocation is not reported as a complete suite.",
+    "coverage": [
+      "System light/dark and explicit opposite-theme preferences at 1280 and 320 px",
+      "Normal and hovered reasoning controls and highlighted menu options; exact colors and contrast >= 4.5:1",
+      "Selection, undo, accessible descriptions, stable geometry, and reduced motion in both themes",
+      "Mobile Settings dismissal returns to the expanded sidebar; project management remains operable",
+      "Work directory missing/absolute/clear/preview flows",
+      "Theme persistence, permission uncertainty, global-provider defaults, and unsaved draft protection"
+    ]
+  },
+  "darkColorContrast": {
+    "basis": "Computed from the opaque CSS colors asserted in the browser cases",
+    "maxNormal": 6.23,
+    "maxHighlighted": 5.33,
+    "ultraNormal": 6.54,
+    "ultraHighlighted": 5.62
+  },
+  "baselineCI": {
+    "sourceCommit": "c021118077e843db402cad0b36c3b4331ea2383c",
+    "qualityJob": "https://github.com/yuzheng14/covro/actions/runs/45541169369/job/138961405864",
+    "qualityConclusion": "success",
+    "note": "Historical baseline evidence only. Unit/integration, packaging, and upgrade checks were not rerun locally for this CSS/test-only follow-up; the new head requires its own CI results."
+  },
+  "limits": {
+    "fullBrowserSuiteRunLocally": false,
+    "realModelRequests": 0,
+    "productionAccountAcceptance": false,
+    "nativeCrossPlatformAcceptance": false,
+    "productionDeploymentPerformed": false
+  },
+  "screenshots": [
+    {
+      "file": "reasoning-menu-light-1280.png",
+      "sha256": "e035e98177a7e7d01534d9325f4b085eb4c901113eb884d04a444ed55257d059",
+      "pngChunks": [
+        "IDAT",
+        "IEND",
+        "IHDR"
+      ]
+    },
+    {
+      "file": "reasoning-menu-light-320.png",
+      "sha256": "96f4e2f5a233c486cb468848585168eb19706843f61e780ebaacce4f42590a28",
+      "pngChunks": [
+        "IDAT",
+        "IEND",
+        "IHDR"
+      ]
+    },
+    {
+      "file": "reasoning-menu-dark-1280.png",
+      "sha256": "76900cf5d78b2d71b17e9a11ca38de470b5ceaecb365391e4bba8fc9796598f9",
+      "pngChunks": [
+        "IDAT",
+        "IEND",
+        "IHDR"
+      ]
+    },
+    {
+      "file": "reasoning-max-dark-1280.png",
+      "sha256": "a47df4c062f32b6cf89c9dfe07d0bd7da01f4e5646aa2187d0fb7c51bdecb0f3",
+      "pngChunks": [
+        "IDAT",
+        "IEND",
+        "IHDR"
+      ]
+    },
+    {
+      "file": "reasoning-ultra-dark-1280.png",
+      "sha256": "952430d4bd69e869cda39738952eca66348105789354761710cb66efaa26b364",
+      "pngChunks": [
+        "IDAT",
+        "IEND",
+        "IHDR"
+      ]
+    },
+    {
+      "file": "reasoning-menu-dark-320.png",
+      "sha256": "2c4ed3d97f7e08c699b9ea8672a7d7aafc29c89e765e9a05427a57d6b045edc9",
+      "pngChunks": [
+        "IDAT",
+        "IEND",
+        "IHDR"
+      ]
+    },
+    {
+      "file": "reasoning-max-dark-320.png",
+      "sha256": "bea9bd4dec2fd91a301cf16b13cfe19868bc4c912781129aecaca0ec53143be5",
+      "pngChunks": [
+        "IDAT",
+        "IEND",
+        "IHDR"
+      ]
+    },
+    {
+      "file": "reasoning-ultra-dark-320.png",
+      "sha256": "88f4c7883980d33cf861874b386a67f2112e1bb8d7fa8259da8834c9a629aa8d",
+      "pngChunks": [
+        "IDAT",
+        "IEND",
+        "IHDR"
+      ]
+    }
+  ],
+  "screenshotNotes": [
+    "Actual Playwright UI regions captured from this source state and visually reviewed.",
+    "Only cropped model-settings controls and reasoning menus with synthetic model labels are included.",
+    "No production conversations, credentials, or filesystem paths. PNG chunks contain no text metadata.",
+    "Screenshots reside on the existing evidence branch and are excluded from the PR source diff."
+  ]
+}
