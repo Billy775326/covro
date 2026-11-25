@@ -14,6 +14,8 @@
 
 ### Fixed
 
+- Preserve readable Max and Ultra reasoning controls and highlighted menu options in dark mode.
+
 - Keep permissions undetermined when named profiles and legacy sandbox settings coexist, so new conversations cannot be labeled read-only from an inactive profile.
 - Show the computed unknown permission label in the composer instead of replacing it with a generic placeholder.
 - Read global default model choices from the current provider on the verified Codex version instead of using the startup catalog.

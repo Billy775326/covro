@@ -54,8 +54,9 @@ const settings = (page: Page) => page.getByRole('region', { name: '服务配置'
 const projectDialog = (page: Page) =>
   page.getByRole('dialog', { name: '添加服务器项目', exact: true });
 async function sidebar(page: Page) {
-  if ((page.viewportSize()?.width ?? 1280) <= 760)
-    await page.getByRole('button', { name: '打开项目与会话', exact: true }).click();
+  const trigger = page.getByRole('button', { name: '打开项目与会话', exact: true });
+  if ((await trigger.isVisible()) && !(await page.locator('.sidebar-open').count()))
+    await trigger.click();
 }
 async function openAdd(page: Page) {
   await sidebar(page);
@@ -165,6 +166,8 @@ test('mobile handles unavailable workDir, absolute overrides and clearing the se
     .scrollIntoViewIfNeeded();
   await capture(page, info, 'workdir-settings-mobile');
   await page.locator('.settings-heading button').click();
+  await expect(page.locator('.sidebar-settings-dialog[open]')).toHaveCount(0);
+  await expect(page.locator('.sidebar-open')).toBeVisible();
   await rm(workDir, { recursive: true });
   const add = await openAdd(page);
   await expect(add.getByRole('alert')).toContainText('workDir 目录不存在');

@@ -2564,14 +2564,14 @@ html.composer-resizing * {
 /* CLI-inspired tier accents and brief ignition effects; no perpetual animation. */
 .reasoning-tier[data-effort='max'] {
   --effort-color: light-dark(#a65310, var(--dark-warning));
-  --effort-surface: light-dark(#fff4e5, var(--dark-warning));
-  --effort-hover: light-dark(#ffead0, var(--dark-warning));
+  --effort-surface: light-dark(#fff4e5, var(--dark-warning-surface));
+  --effort-hover: light-dark(#ffead0, #463d2d);
   --effort-glow: #e9953340;
 }
 .reasoning-tier[data-effort='ultra'] {
-  --effort-color: light-dark(#7c3ad9, var(--dark-text-secondary));
-  --effort-surface: light-dark(#f4edff, var(--dark-text-muted));
-  --effort-hover: light-dark(#eadcff, var(--dark-text-muted));
+  --effort-color: light-dark(#7c3ad9, #c5ace8);
+  --effort-surface: light-dark(#f4edff, #342d40);
+  --effort-hover: light-dark(#eadcff, #40364f);
   --effort-glow: #aa78ed40;
 }
 .reasoning-tier:is([data-effort='max'], [data-effort='ultra']) {
